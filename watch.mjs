@@ -2,7 +2,7 @@ import {readFileSync} from "node:fs";
 import EventEmitter from "node:events";
 import esbuild from "esbuild";
 import CheapWatch from "cheap-watch";
-import {EventType, setupWebSocketServer, fileChangeEventToMsg, fileRemovalEventToMsg} from "./remote.mjs";
+import {EventType, fileChangeEventToMsg, fileRemovalEventToMsg, setupWebSocketServer} from "./remote.mjs";
 
 const config = JSON.parse(readFileSync("./config.json"));
 const eventEmitter = new EventEmitter();

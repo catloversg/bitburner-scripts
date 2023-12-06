@@ -8,7 +8,7 @@ import {
 import {getRecordKeys} from "/libs/Record";
 import {
     buyOptimalAmountOfInputMaterials,
-    improveEmployeeStatsForAllDivisions,
+    buyTeaAndThrowPartyForAllDivisions,
     loopAllDivisionsAndCities,
     setOptimalSellingPrice
 } from "/corporationUtils";
@@ -60,7 +60,7 @@ export async function main(nsContext: NS): Promise<void> {
         const warehouseCongestionData = new Map<string, number>();
         // noinspection InfiniteLoopJS
         while (true) {
-            improveEmployeeStatsForAllDivisions(ns);
+            buyTeaAndThrowPartyForAllDivisions(ns);
 
             if (!smartSupplyHasBeenEnabledEverywhere) {
                 // Enable Smart Supply everywhere if we have unlocked this feature

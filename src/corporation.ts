@@ -10,12 +10,12 @@ import {
     assignJobs,
     buyAdvert,
     buyMaterials,
+    buyTeaAndThrowParty,
     buyUnlock,
     buyUpgrade,
     cities,
     DivisionName,
     exportString,
-    improveEmployeeStats,
     initDivision,
     upgradeOffices,
     upgradeWarehouse,
@@ -185,7 +185,7 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1) 
     buyUpgrade(ns, UpgradeName.SMART_FACTORIES, option.smartFactoriesLevel);
     buyAdvert(ns, DivisionName.AGRICULTURE, option.advertLevel);
 
-    await improveEmployeeStats(ns, DivisionName.AGRICULTURE);
+    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
 
     // Sell produced materials
     for (const city of cities) {

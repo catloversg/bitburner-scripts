@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import {app, BrowserWindow} from "electron";
 
 const createWindow = () => {
     const mainWindow = new BrowserWindow({

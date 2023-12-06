@@ -133,7 +133,7 @@ export function upgradeWarehouse(ns: NS, divisionName: string, city: CityName, t
  * @param ns
  * @param divisionName
  */
-export async function improveEmployeeStats(ns: NS, divisionName: string) {
+export async function buyTeaAndThrowParty(ns: NS, divisionName: string) {
     while (true) {
         let finish = true;
         for (const city of cities) {
@@ -157,7 +157,7 @@ export async function improveEmployeeStats(ns: NS, divisionName: string) {
 /**
  * Buying tea/throwing party once for each office in all divisions
  */
-export function improveEmployeeStatsForAllDivisions(ns: NS) {
+export function buyTeaAndThrowPartyForAllDivisions(ns: NS) {
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
         let office = ns.corporation.getOffice(divisionName, city);
         if (office.avgEnergy < 98) {
@@ -338,7 +338,7 @@ export async function initDivision(ns: NS, divisionName: string, officeSize: num
             ns.corporation.setSmartSupply(divisionName, city, true);
         }
     }
-    await improveEmployeeStats(ns, divisionName);
+    await buyTeaAndThrowParty(ns, divisionName);
     return ns.corporation.getDivision(divisionName);
 }
 
@@ -774,7 +774,7 @@ export function isProduct(item: any): item is Product {
 }
 
 /**
- * Custom Market-TA.II
+ * Custom Market-TA.II script
  *
  * @param ns
  * @param division
