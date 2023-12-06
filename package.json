@@ -1,0 +1,17 @@
+{
+  "name": "bitburner-scripts",
+  "version": "1.0.0",
+  "author": "CatLover",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "npm run build && node watch.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.8",
+    "fast-glob": "^3.3.2",
+    "cheap-watch": "1.0.4",
+    "ws": "^8.14.2"
+  }
+}
