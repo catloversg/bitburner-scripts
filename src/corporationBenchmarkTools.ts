@@ -3,8 +3,26 @@ import * as comlink from "/libs/comlink";
 import {BenchmarkType, CorporationBenchmark, getComparator} from "/corporationBenchmark";
 import {CityName, formatNumber} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct} from "/corporationUtils";
+import {generateBlobUrl} from "/scriptUtils";
+import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
 
-const workerModuleUrl = new CorporationBenchmark().getScriptUrl();
+let workerModuleUrl = new CorporationBenchmark().getScriptUrl();
+
+async function validateWorkerModuleUrl(ns: NS) {
+    let fetchResult;
+    let valid = true;
+    try {
+        fetchResult = await fetch(workerModuleUrl);
+    } catch (e) {
+        valid = false;
+    }
+    if (fetchResult && !fetchResult.ok) {
+        valid = false;
+    }
+    if (!valid) {
+        workerModuleUrl = generateBlobUrl(ns, "corporationBenchmark.js" as ScriptFilePath);
+    }
+}
 
 export async function optimizeOffice(
     ns: NS,
@@ -13,7 +31,9 @@ export async function optimizeOffice(
     maxTotalEmployees: number,
     item: Material | Product,
     sortType: "rawProduction" | "profit" | "progress" | "profit_progress") {
-    console.clear();
+    await validateWorkerModuleUrl(ns);
+
+    // console.clear();
     const data: any[] = [];
     const division = ns.corporation.getDivision(divisionName);
     const industryData = ns.corporation.getIndustryData(division.type);

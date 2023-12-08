@@ -1,8 +1,13 @@
-import {readFileSync} from "node:fs";
+import {readFileSync, unlinkSync} from "node:fs";
+import {dirname, resolve} from "node:path";
+import {fileURLToPath} from "node:url";
 import EventEmitter from "node:events";
 import esbuild from "esbuild";
 import CheapWatch from "cheap-watch";
 import {EventType, fileChangeEventToMsg, fileRemovalEventToMsg, setupWebSocketServer} from "./remote.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const config = JSON.parse(readFileSync("./config.json"));
 const eventEmitter = new EventEmitter();
@@ -43,7 +48,7 @@ watchScriptsFolder.on("+", (fileEvent) => {
 });
 watchScriptsFolder.on("-", (fileEvent) => {
     if (fileEvent.stats.isFile() && (fileEvent.path.endsWith(".ts") || fileEvent.path.endsWith(".js"))) {
-        eventEmitter.emit(EventType.MessageSend, fileRemovalEventToMsg({path: fileEvent.path.replace(".ts", ".js")}));
+        unlinkSync(resolve(__dirname, config.buildFolder, fileEvent.path.replace(".ts", ".js")));
     }
 });
 

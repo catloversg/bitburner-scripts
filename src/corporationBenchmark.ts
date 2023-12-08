@@ -104,7 +104,7 @@ export class CorporationBenchmark {
     // Key: divisionName|city|productName
     private productMarkupMap = new Map<string, number>();
 
-    public getScriptUrl() {
+    public getScriptUrl(): string {
         return import.meta.url;
     }
 
