@@ -109,7 +109,7 @@ export interface CeresSolverResult {
     report: string;
 }
 
-const warehouseSizeUpgradeCostBase = 1e9;
+const warehouseUpgradeBasePrice = 1e9;
 
 const numberSuffixList = ["", "k", "m", "b", "t", "q", "Q", "s", "S", "o", "n"];
 // exponents associated with each suffix
@@ -175,7 +175,7 @@ export function formatNumber(value: number): string {
 
 /**
  * src\Corporation\Division.ts: calculateProductionFactors()
- * This method assumes that 6 cities has the same number of boost materials in their warehouses.
+ * This method assumes that 6 cities have the same number of boost materials' units in their warehouses.
  *
  * @param industryData
  * @param boostMaterials
@@ -189,21 +189,33 @@ export function getDivisionProductionMultiplier(industryData: CorpIndustryData, 
     return Math.max(Math.pow(cityMultiplier, 0.73), 1) * 6;
 }
 
-/**
- * src\Corporation\helpers.ts: calculateUpgradeCost()
- *
- * @param upgradeName
- * @param upgradeLevel
- * @param amount
- */
-export function getUpgradeCost(upgradeName: CorpUpgradeName, upgradeLevel: number, amount: number): number {
+function calculateGenericUpgradeCost(basePrice: number, priceMultiplier: number, fromLevel: number, toLevel: number): number {
+    return basePrice * ((Math.pow(priceMultiplier, toLevel) - Math.pow(priceMultiplier, fromLevel)) / (priceMultiplier - 1));
+}
+
+function calculateGenericMaxAffordableUpgradeLevel(basePrice: number, priceMultiplier: number, fromLevel: number, maxCost: number): number {
+    return Math.floor(
+        Math.log(
+            maxCost * (priceMultiplier - 1) / basePrice + Math.pow(priceMultiplier, fromLevel)
+        )
+        / Math.log(priceMultiplier)
+    );
+}
+
+export function getUpgradeCost(upgradeName: CorpUpgradeName, fromLevel: number, toLevel: number): number {
     let upgradeData = CorpUpgradesData[upgradeName];
     if (!upgradeData) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
-    const priceMultiplier = upgradeData.priceMult;
-    const baseCost = upgradeData.basePrice * Math.pow(priceMultiplier, upgradeLevel);
-    return (baseCost * (1 - Math.pow(priceMultiplier, amount))) / (1 - priceMultiplier);
+    return calculateGenericUpgradeCost(upgradeData.basePrice, upgradeData.priceMult, fromLevel, toLevel);
+}
+
+export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromLevel: number, maxCost: number): number {
+    let upgradeData = CorpUpgradesData[upgradeName];
+    if (!upgradeData) {
+        throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
+    }
+    return calculateGenericMaxAffordableUpgradeLevel(upgradeData.basePrice, upgradeData.priceMult, fromLevel, maxCost);
 }
 
 /**
@@ -223,16 +235,20 @@ export function getUpgradeBenefit(upgradeName: CorpUpgradeName, upgradeLevel: nu
     return value;
 }
 
-/**
- * src\Corporation\Actions.ts: UpgradeWarehouseCost()
- *
- * @param warehouseLevel
- * @param amount
- */
-export function getUpgradeWarehouseCost(warehouseLevel: number, amount: number): number {
-    return Array.from(Array(amount).keys()).reduce((acc, index) => {
-        return acc + warehouseSizeUpgradeCostBase * Math.pow(1.07, warehouseLevel + 1 + index);
-    }, 0);
+export function getUpgradeWarehouseCost(fromLevel: number, toLevel: number): number {
+    if (fromLevel < 1) {
+        throw new Error("Invalid parameter");
+    }
+    return warehouseUpgradeBasePrice * ((Math.pow(1.07, toLevel + 1) - Math.pow(1.07, fromLevel + 1)) / 0.07);
+}
+
+export function getMaxAffordableWarehouseLevel(fromLevel: number, maxCost: number): number {
+    if (fromLevel < 1) {
+        throw new Error("Invalid parameter");
+    }
+    return Math.floor(
+        (Math.log(maxCost * 0.07 / warehouseUpgradeBasePrice + Math.pow(1.07, fromLevel + 1)) / Math.log(1.07)) - 1
+    );
 }
 
 /**
@@ -248,19 +264,12 @@ export function getWarehouseSize(smartStorageLevel: number, warehouseLevel: numb
         getResearchStorageMultiplier(divisionResearches);
 }
 
-/**
- * src\Corporation\Division.ts: getAdVertCost()
- *
- * @param fromLevel
- * @param toLevel
- */
 export function getAdVertCost(fromLevel: number, toLevel: number): number {
-    let total = 0;
-    for (let level = fromLevel; level <= toLevel; level++) {
-        const advertCost = 1e9 * Math.pow(1.06, level);
-        total += advertCost;
-    }
-    return total;
+    return calculateGenericUpgradeCost(1e9, 1.06, fromLevel, toLevel);
+}
+
+export function getMaxAffordableAdVertLevel(fromLevel: number, maxCost: number): number {
+    return calculateGenericMaxAffordableUpgradeLevel(1e9, 1.06, fromLevel, maxCost);
 }
 
 export function getResearchMultiplier(divisionResearches: DivisionResearches, researchDataKey: keyof typeof CorpResearchesData[string]): number {

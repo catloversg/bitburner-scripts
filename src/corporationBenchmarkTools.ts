@@ -1,5 +1,6 @@
 import {Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
+import {Remote} from "/libs/comlink";
 import {BenchmarkType, CorporationBenchmark, getComparator} from "/corporationBenchmark";
 import {CityName, formatNumber} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct} from "/corporationUtils";
@@ -24,6 +25,39 @@ async function validateWorkerModuleUrl(ns: NS) {
     }
 }
 
+async function splitWorkload(
+    ns: NS,
+    min: number,
+    max: number,
+    workload: (worker: Worker, workerWrapper: Remote<CorporationBenchmark>, from: number, to: number) => Promise<void>) {
+    let numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
+    const workers: Worker[] = [];
+    const promises: Promise<any>[] = [];
+    let current = min;
+    const step = Math.floor((max - min) / numberOfThreads);
+    console.time("Office benchmark execution time");
+    for (let i = 0; i < numberOfThreads; ++i) {
+        const from = current;
+        if (from > max) {
+            break;
+        }
+        const to = Math.min(current + step, max);
+        console.log(`from: ${from}, to: ${to}`);
+        const worker = new Worker(workerModuleUrl, {type: "module"});
+        workers.push(worker);
+        const workerWrapper = comlink.wrap<CorporationBenchmark>(worker);
+        promises.push(workload(worker, workerWrapper, from, to));
+        current += (step + 1);
+    }
+    ns.atExit(() => {
+        workers.forEach(worker => {
+            worker.terminate();
+        });
+    });
+    await Promise.allSettled(promises);
+    console.timeEnd("Office benchmark execution time");
+}
+
 export async function optimizeOffice(
     ns: NS,
     divisionName: string,
@@ -33,7 +67,6 @@ export async function optimizeOffice(
     sortType: "rawProduction" | "profit" | "progress" | "profit_progress") {
     await validateWorkerModuleUrl(ns);
 
-    // console.clear();
     const data: any[] = [];
     const division = ns.corporation.getDivision(divisionName);
     const industryData = ns.corporation.getIndustryData(division.type);
@@ -51,25 +84,10 @@ export async function optimizeOffice(
         divisionResearches: getDivisionResearches(ns, division.name)
     };
 
-    let numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
     const min = 1;
     const max = Math.floor(maxTotalEmployees * 0.6);
-    const workers: Worker[] = [];
-    const promises: Promise<any>[] = [];
-    let current = min;
-    const step = Math.floor((max - min) / numberOfThreads);
-    console.time("Office benchmark execution time");
-    for (let i = 0; i < numberOfThreads; ++i) {
-        const from = current;
-        if (from > max) {
-            break;
-        }
-        const to = Math.min(current + step, max);
-        console.log(`from: ${from}, to: ${to}`);
-        const worker = new Worker(workerModuleUrl, {type: "module"});
-        workers.push(worker);
-        const corporationWorker = comlink.wrap<CorporationBenchmark>(worker);
-        const promise = corporationWorker.optimizeOffice(
+    const workload = async (worker: Worker, workerWrapper: Remote<CorporationBenchmark>, from: number, to: number) => {
+        return workerWrapper.optimizeOffice(
             division,
             industryData,
             city,
@@ -96,21 +114,20 @@ export async function optimizeOffice(
         }).catch(reason => {
             console.error(reason);
         });
-        promises.push(promise);
-        current += (step + 1);
-    }
-    ns.atExit(() => {
-        workers.forEach(worker => {
-            worker.terminate();
-        });
-    });
-    await Promise.allSettled(promises);
-    console.timeEnd("Office benchmark execution time");
+    };
+    console.time("Office benchmark");
+    await splitWorkload(
+        ns,
+        min,
+        max,
+        workload
+    );
+    console.timeEnd("Office benchmark");
 
     data.sort(getComparator(BenchmarkType.OFFICE, sortType));
     let dataForLogging = data;
-    if (dataForLogging.length > 100) {
-        dataForLogging = dataForLogging.slice(-100);
+    if (dataForLogging.length > 20) {
+        dataForLogging = dataForLogging.slice(-20);
     }
     dataForLogging.forEach(data => {
         let message = `{operations:${data.operations}, engineer:${data.engineer}, business:${data.business}, management:${data.management}, `;

@@ -15,6 +15,9 @@ import {
     getBusinessFactor,
     getDivisionProductionMultiplier,
     getMarketFactor,
+    getMaxAffordableAdVertLevel,
+    getMaxAffordableUpgradeLevel,
+    getMaxAffordableWarehouseLevel,
     getResearchAdvertisingMultiplier,
     getResearchSalesMultiplier,
     getUpgradeBenefit,
@@ -28,12 +31,12 @@ import {CorpUpgradesData} from "/data/CorpUpgradesData";
 import {PriorityQueue} from "/libs/priorityQueue";
 
 export enum BenchmarkType {
-    STORAGE_FACTORY_UPGRADE,
+    STORAGE_FACTORY,
     WILSON_ADVERT,
     OFFICE
 }
 
-interface StorageFactoryUpgradeData {
+interface StorageFactoryBenchmarkData {
     smartStorageLevel: number;
     warehouseLevel: number;
     smartFactoriesLevel: number;
@@ -47,7 +50,7 @@ interface StorageFactoryUpgradeData {
     boostMaterialMultiplier: number;
 }
 
-interface WilsonAdvertUpgradeData {
+interface WilsonAdvertBenchmarkData {
     wilsonLevel: number;
     advertLevel: number;
     totalCost: number;
@@ -71,8 +74,31 @@ interface OfficeBenchmarkData {
     productDevelopmentProgress: number;
 }
 
-export function getComparator(benchmarkType: BenchmarkType, sortType: string): (a: any, b: any) => number {
+export function getComparator(benchmarkType: BenchmarkType, sortType?: string): (a: any, b: any) => number {
     switch (benchmarkType) {
+        case BenchmarkType.STORAGE_FACTORY:
+            return (a: StorageFactoryBenchmarkData, b: StorageFactoryBenchmarkData) => {
+                if (!a || !b) {
+                    return 1;
+                }
+                if (a.production !== b.production) {
+                    return a.production - b.production;
+                }
+                return b.totalCost - a.totalCost;
+            };
+        case BenchmarkType.WILSON_ADVERT:
+            return (a: WilsonAdvertBenchmarkData, b: WilsonAdvertBenchmarkData) => {
+                if (!a || !b) {
+                    return 1;
+                }
+                if (sortType === "totalCost") {
+                    return b.totalCost - a.totalCost;
+                }
+                if (a.advertisingFactor !== b.advertisingFactor) {
+                    return a.advertisingFactor - b.advertisingFactor;
+                }
+                return b.totalCost - a.totalCost;
+            };
         case BenchmarkType.OFFICE:
             return (a: OfficeBenchmarkData, b: OfficeBenchmarkData) => {
                 if (!a || !b) {
@@ -108,31 +134,48 @@ export class CorporationBenchmark {
         return import.meta.url;
     }
 
-    public optimizeStorageAndFactoryUpgrade(
+    public optimizeStorageAndFactory(
         industryData: CorpIndustryData,
-        minSmartStorageLevel = 0,
-        minWarehouseLevel = 1,
-        minSmartFactoriesLevel = 0,
-        maxAdditionalLevel: number,
+        currentSmartStorageLevel: number,
+        currentWarehouseLevel: number,
+        currentSmartFactoriesLevel: number,
         divisionResearches: DivisionResearches,
-        maxCost = Number.MAX_SAFE_INTEGER,
+        maxCost: number,
         boostMaterialTotalSizeRatio = 0.8) {
-        let data: StorageFactoryUpgradeData[] = [];
-        for (let smartStorageLevel = minSmartStorageLevel;
-             smartStorageLevel <= minSmartStorageLevel + maxAdditionalLevel;
-             smartStorageLevel++) {
-            for (let warehouseLevel = minWarehouseLevel;
-                 warehouseLevel <= minWarehouseLevel + maxAdditionalLevel;
-                 warehouseLevel++) {
-                const upgradeSmartStorageCost = getUpgradeCost(
-                    UpgradeName.SMART_STORAGE,
-                    minSmartStorageLevel,
-                    smartStorageLevel - minSmartStorageLevel
-                );
+        if (currentSmartStorageLevel < 0 || currentWarehouseLevel < 0 || currentSmartFactoriesLevel < 0) {
+            throw new Error("Invalid parameter");
+        }
+        const maxSmartStorageLevel = getMaxAffordableUpgradeLevel(UpgradeName.SMART_STORAGE, currentSmartStorageLevel, maxCost);
+        const maxWarehouseLevel = getMaxAffordableWarehouseLevel(currentWarehouseLevel, maxCost / 6);
+        const comparator = getComparator(BenchmarkType.STORAGE_FACTORY);
+        const priorityQueue = new PriorityQueue(comparator);
+        let minSmartStorageLevel = currentSmartStorageLevel;
+        if (maxSmartStorageLevel - minSmartStorageLevel > 1000) {
+            minSmartStorageLevel = Math.floor((currentSmartStorageLevel + maxSmartStorageLevel) * 2 / 3);
+        }
+        let minWarehouseLevel = currentWarehouseLevel;
+        if (maxWarehouseLevel - currentWarehouseLevel > 1000) {
+            minWarehouseLevel = Math.floor((currentWarehouseLevel + maxWarehouseLevel) * 2 / 3);
+        }
+        console.log("minSmartStorageLevel", minSmartStorageLevel);
+        console.log("minWarehouseLevel", minWarehouseLevel);
+        console.log("maxSmartStorageLevel", maxSmartStorageLevel);
+        console.log("maxWarehouseLevel", maxWarehouseLevel);
+        console.time("StorageAndFactory benchmark");
+        for (let smartStorageLevel = minSmartStorageLevel; smartStorageLevel <= maxSmartStorageLevel; smartStorageLevel++) {
+            const upgradeSmartStorageCost = getUpgradeCost(
+                UpgradeName.SMART_STORAGE,
+                currentSmartStorageLevel,
+                smartStorageLevel
+            );
+            for (let warehouseLevel = minWarehouseLevel; warehouseLevel <= maxWarehouseLevel; warehouseLevel++) {
                 const upgradeWarehouseCost = getUpgradeWarehouseCost(
-                    minWarehouseLevel,
-                    warehouseLevel - minWarehouseLevel
+                    currentWarehouseLevel,
+                    warehouseLevel
                 ) * 6;
+                if (upgradeSmartStorageCost + upgradeWarehouseCost > maxCost) {
+                    break;
+                }
                 const warehouseSize = getWarehouseSize(
                     smartStorageLevel,
                     warehouseLevel,
@@ -140,46 +183,43 @@ export class CorporationBenchmark {
                 );
                 const boostMaterials = optimizeBoostMaterialQuantities(industryData, warehouseSize * boostMaterialTotalSizeRatio);
                 const boostMaterialMultiplier = getDivisionProductionMultiplier(industryData, boostMaterials);
-                for (let smartFactoriesLevel = minSmartFactoriesLevel;
-                     smartFactoriesLevel <= minSmartFactoriesLevel + maxAdditionalLevel;
-                     smartFactoriesLevel++) {
-                    const upgradeSmartFactoriesCost = getUpgradeCost(
-                        UpgradeName.SMART_FACTORIES,
-                        minSmartFactoriesLevel,
-                        smartFactoriesLevel - minSmartFactoriesLevel
-                    );
-                    const smartFactoriesMultiplier = 1 + CorpUpgradesData[UpgradeName.SMART_FACTORIES].benefit * smartFactoriesLevel;
-                    const production = boostMaterialMultiplier * smartFactoriesMultiplier;
-                    const totalCost = upgradeSmartStorageCost + upgradeWarehouseCost + upgradeSmartFactoriesCost;
-                    if (totalCost > maxCost) {
-                        break;
-                    }
-                    data.push({
-                        smartStorageLevel: smartStorageLevel,
-                        warehouseLevel: warehouseLevel,
-                        smartFactoriesLevel: smartFactoriesLevel,
-                        upgradeSmartStorageCost: upgradeSmartStorageCost,
-                        upgradeWarehouseCost: upgradeWarehouseCost,
-                        warehouseSize: warehouseSize,
-                        totalCost: totalCost,
-                        production: production,
-                        costPerProduction: totalCost / production,
-                        boostMaterials: boostMaterials,
-                        boostMaterialMultiplier: boostMaterialMultiplier
-                    });
+                const budgetForSmartFactoriesUpgrade = maxCost - (upgradeSmartStorageCost + upgradeWarehouseCost);
+                const maxAffordableSmartFactoriesLevel = getMaxAffordableUpgradeLevel(
+                    UpgradeName.SMART_FACTORIES,
+                    currentSmartFactoriesLevel,
+                    budgetForSmartFactoriesUpgrade
+                );
+                const upgradeSmartFactoriesCost = getUpgradeCost(
+                    UpgradeName.SMART_FACTORIES,
+                    currentSmartFactoriesLevel,
+                    maxAffordableSmartFactoriesLevel
+                );
+                const totalCost = upgradeSmartStorageCost + upgradeWarehouseCost + upgradeSmartFactoriesCost;
+                const smartFactoriesMultiplier = 1 + CorpUpgradesData[UpgradeName.SMART_FACTORIES].benefit * maxAffordableSmartFactoriesLevel;
+                const production = boostMaterialMultiplier * smartFactoriesMultiplier;
+                const dataEntry = {
+                    smartStorageLevel: smartStorageLevel,
+                    warehouseLevel: warehouseLevel,
+                    smartFactoriesLevel: maxAffordableSmartFactoriesLevel,
+                    upgradeSmartStorageCost: upgradeSmartStorageCost,
+                    upgradeWarehouseCost: upgradeWarehouseCost,
+                    warehouseSize: warehouseSize,
+                    totalCost: totalCost,
+                    production: production,
+                    costPerProduction: totalCost / production,
+                    boostMaterials: boostMaterials,
+                    boostMaterialMultiplier: boostMaterialMultiplier
+                };
+                if (priorityQueue.size() < 20) {
+                    priorityQueue.push(dataEntry);
+                } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
+                    priorityQueue.pop();
+                    priorityQueue.push(dataEntry);
                 }
             }
         }
-        data.sort((a, b) => {
-            if (a.production !== b.production) {
-                return a.production - b.production;
-            }
-            return b.totalCost - a.totalCost;
-        });
-        if (data.length > 200) {
-            data = data.slice(-200);
-        }
-        console.clear();
+        console.timeEnd("StorageAndFactory benchmark");
+        let data: StorageFactoryBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
             console.log(
                 `{storage:${data.smartStorageLevel}, warehouse:${data.warehouseLevel}, factory:${data.smartFactoriesLevel}, ` +
@@ -196,20 +236,27 @@ export class CorporationBenchmark {
 
     public optimizeWilsonAndAdvert(
         industryData: CorpIndustryData,
-        minWilsonLevel: number,
-        maxAdditionalWilsonLevel: number,
-        minAdvertLevel: number,
-        maxAdditionalAdvertLevel: number,
+        currentWilsonLevel: number,
+        currentAdvertLevel: number,
         divisionResearches: DivisionResearches,
-        maxCost = Number.MAX_SAFE_INTEGER) {
+        maxCost: number) {
+        if (currentWilsonLevel < 0 || currentAdvertLevel < 0) {
+            throw new Error("Invalid parameter");
+        }
+        const maxWilsonLevel = getMaxAffordableUpgradeLevel(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, maxCost);
+        const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, maxCost);
+        console.log(`maxWilsonLevel: ${maxWilsonLevel}`);
+        console.log(`maxAdvertLevel: ${maxAdvertLevel}`);
         const researchAdvertisingMultiplier = getResearchAdvertisingMultiplier(divisionResearches);
         const awarenessMap = new Map<string, number>();
         const popularityMap = new Map<string, number>();
-        let data: WilsonAdvertUpgradeData[] = [];
-        for (let wilsonLevel = minWilsonLevel; wilsonLevel <= minWilsonLevel + maxAdditionalWilsonLevel; wilsonLevel++) {
-            for (let advertLevel = minAdvertLevel; advertLevel <= minAdvertLevel + maxAdditionalAdvertLevel; advertLevel++) {
-                const wilsonCost = getUpgradeCost(UpgradeName.WILSON_ANALYTICS, minWilsonLevel, wilsonLevel - minWilsonLevel);
-                const advertCost = getAdVertCost(minAdvertLevel, advertLevel);
+        const comparator = getComparator(BenchmarkType.WILSON_ADVERT);
+        const priorityQueue = new PriorityQueue(comparator);
+        console.time("WilsonAndAdvert benchmark");
+        for (let wilsonLevel = currentWilsonLevel; wilsonLevel <= maxWilsonLevel; wilsonLevel++) {
+            const wilsonCost = getUpgradeCost(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, wilsonLevel);
+            for (let advertLevel = currentAdvertLevel + 1; advertLevel <= maxAdvertLevel; advertLevel++) {
+                const advertCost = getAdVertCost(currentAdvertLevel, advertLevel);
                 const totalCost = wilsonCost + advertCost;
                 if (totalCost > maxCost) {
                     break;
@@ -218,7 +265,7 @@ export class CorporationBenchmark {
                 let previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
                 const advertisingMultiplier = (1 + CorpUpgradesData[UpgradeName.WILSON_ANALYTICS].benefit * wilsonLevel) * researchAdvertisingMultiplier;
                 let awareness = (previousAwareness + 3 * advertisingMultiplier) * (1.005 * advertisingMultiplier);
-                // Hardcode value of getRandomInt(1, 3), we don't want RNG here
+                // Hardcode value of getRandomInt(1, 3). We don't want RNG here.
                 // let popularity = (previousPopularity + advertisingMultiplier) * ((1 + getRandomInt(1, 3) / 200) * advertisingMultiplier);
                 let popularity = (previousPopularity + advertisingMultiplier) * ((1 + 2 / 200) * advertisingMultiplier);
                 awareness = Math.min(awareness, Number.MAX_VALUE);
@@ -226,30 +273,26 @@ export class CorporationBenchmark {
                 awarenessMap.set(`${wilsonLevel}|${advertLevel}`, awareness);
                 popularityMap.set(`${wilsonLevel}|${advertLevel}`, popularity);
                 const [advertisingFactor] = getAdvertisingFactors(awareness, popularity, industryData.advertisingFactor!);
-                data.push({
+                const dataEntry = {
                     wilsonLevel: wilsonLevel,
-                    advertLevel: advertLevel + 1, // Must +1 because we calculate by accumulating value
+                    advertLevel: advertLevel,
                     totalCost: totalCost,
                     popularity: popularity,
                     awareness: awareness,
                     ratio: (popularity / awareness),
                     advertisingFactor: advertisingFactor,
                     costPerAdvertisingFactor: totalCost / advertisingFactor
-                });
+                };
+                if (priorityQueue.size() < 20) {
+                    priorityQueue.push(dataEntry);
+                } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
+                    priorityQueue.pop();
+                    priorityQueue.push(dataEntry);
+                }
             }
         }
-        data.sort((a, b) => {
-            if (a.advertisingFactor !== b.advertisingFactor) {
-                return a.advertisingFactor - b.advertisingFactor;
-            }
-            return b.totalCost - a.totalCost;
-            // return a.totalCost - b.totalCost;
-            // return a.costPerAdvertFactor - b.costPerAdvertFactor;
-        });
-        if (data.length > 200) {
-            data = data.slice(-200);
-        }
-        console.clear();
+        console.timeEnd("WilsonAndAdvert benchmark");
+        let data: WilsonAdvertBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
             console.log(
                 `{wilson:${data.wilsonLevel}, advert:${data.advertLevel}, ` +
@@ -307,8 +350,8 @@ export class CorporationBenchmark {
     ): Promise<{ step: number; data: OfficeBenchmarkData[]; }> {
         const itemIsProduct = isProduct(item);
 
-        let demand = 0;
-        let competition = 0;
+        let demand: number;
+        let competition: number;
         if (customData.demandCompetition) {
             demand = customData.demandCompetition.demand;
             competition = customData.demandCompetition.competition;
@@ -337,7 +380,7 @@ export class CorporationBenchmark {
             customData.divisionResearches
         );
 
-        let itemMultiplier = 1;
+        let itemMultiplier: number;
         if (itemIsProduct) {
             itemMultiplier = 0.5 * Math.pow(item.effectiveRating, 0.65);
         } else {
@@ -483,7 +526,7 @@ export class CorporationBenchmark {
                                 profit: profit,
                                 productDevelopmentProgress: productDevelopmentProgress,
                             };
-                            if (priorityQueue.size() <= 100) {
+                            if (priorityQueue.size() < 20) {
                                 priorityQueue.push(dataEntry);
                             } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
                                 priorityQueue.pop();
