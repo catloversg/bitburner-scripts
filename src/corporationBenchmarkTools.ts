@@ -1,7 +1,7 @@
 import {Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
-import {BenchmarkType, CorporationBenchmark, getComparator} from "/corporationBenchmark";
+import {BenchmarkType, CorporationBenchmark, getComparator, OfficeBenchmarkData} from "/corporationBenchmark";
 import {CityName, formatNumber} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct} from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
@@ -25,28 +25,72 @@ async function validateWorkerModuleUrl(ns: NS) {
     }
 }
 
+type Workload = (
+    worker: Worker,
+    workerWrapper: Remote<CorporationBenchmark>,
+    operationsJob: {
+        min: number;
+        max: number;
+    },
+    engineerJob: {
+        min: number;
+        max: number;
+    },
+    managementJob: {
+        min: number;
+        max: number;
+    }
+) => Promise<void>;
+
 async function splitWorkload(
     ns: NS,
-    min: number,
-    max: number,
-    workload: (worker: Worker, workerWrapper: Remote<CorporationBenchmark>, from: number, to: number) => Promise<void>) {
+    operationsJob: {
+        min: number;
+        max: number;
+    },
+    engineerJob: {
+        min: number;
+        max: number;
+    },
+    managementJob: {
+        min: number;
+        max: number;
+    },
+    workload: Workload) {
     let numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
     const workers: Worker[] = [];
     const promises: Promise<any>[] = [];
-    let current = min;
-    const step = Math.floor((max - min) / numberOfThreads);
+    let current = operationsJob.min;
+    const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
     console.time("Office benchmark execution time");
     for (let i = 0; i < numberOfThreads; ++i) {
         const from = current;
-        if (from > max) {
+        if (from > operationsJob.max) {
             break;
         }
-        const to = Math.min(current + step, max);
+        const to = Math.min(current + step, operationsJob.max);
         console.log(`from: ${from}, to: ${to}`);
         const worker = new Worker(workerModuleUrl, {type: "module"});
         workers.push(worker);
         const workerWrapper = comlink.wrap<CorporationBenchmark>(worker);
-        promises.push(workload(worker, workerWrapper, from, to));
+        promises.push(
+            workload(
+                worker,
+                workerWrapper,
+                {
+                    min: from,
+                    max: to
+                },
+                {
+                    min: engineerJob.min,
+                    max: engineerJob.max
+                },
+                {
+                    min: managementJob.min,
+                    max: managementJob.max
+                }
+            )
+        );
         current += (step + 1);
     }
     ns.atExit(() => {
@@ -64,10 +108,11 @@ export async function optimizeOffice(
     city: CityName,
     maxTotalEmployees: number,
     item: Material | Product,
-    sortType: "rawProduction" | "profit" | "progress" | "profit_progress") {
+    sortType: "rawProduction" | "profit" | "progress" | "profit_progress",
+    maxRerun = 1) {
     await validateWorkerModuleUrl(ns);
 
-    const data: any[] = [];
+    const data: OfficeBenchmarkData[] = [];
     const division = ns.corporation.getDivision(divisionName);
     const industryData = ns.corporation.getIndustryData(division.type);
     const office = ns.corporation.getOffice(division.name, city);
@@ -83,67 +128,138 @@ export async function optimizeOffice(
         corporationUpgradeLevels: getCorporationUpgradeLevels(ns),
         divisionResearches: getDivisionResearches(ns, division.name)
     };
+    const printLog = (dataEntry: OfficeBenchmarkData) => {
+        let message = `{operations:${dataEntry.operations}, engineer:${dataEntry.engineer}, `
+            + `business:${dataEntry.business}, management:${dataEntry.management}, `;
+        message += `totalExperience:${formatNumber(dataEntry.totalExperience)}, `;
+        message +=
+            `rawProduction:${formatNumber(dataEntry.rawProduction)}, ` +
+            `maxSalesVolume:${formatNumber(dataEntry.maxSalesVolume)}, ` +
+            `optimalPrice:${formatNumber(dataEntry.optimalPrice)}, ` +
+            `profit:${(dataEntry.profit)}, ` +
+            `salesEfficiency: ${Math.min(dataEntry.maxSalesVolume / dataEntry.rawProduction, 1).toFixed(3)}`;
+        if (isProduct(item)) {
+            message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}, `;
+            message += `, profit_progress: ${(dataEntry.profit * dataEntry.productDevelopmentProgress).toFixed(5)}}`;
+        } else {
+            message += "}";
+        }
+        console.log(message);
+    };
 
     const min = 1;
     const max = Math.floor(maxTotalEmployees * 0.6);
-    const workload = async (worker: Worker, workerWrapper: Remote<CorporationBenchmark>, from: number, to: number) => {
+    let maxUsedStep = 0;
+    let error: any;
+    const workload: Workload = async (
+        worker: Worker,
+        workerWrapper: Remote<CorporationBenchmark>,
+        operationsJob: {
+            min: number;
+            max: number;
+        },
+        engineerJob: {
+            min: number;
+            max: number;
+        },
+        managementJob: {
+            min: number;
+            max: number;
+        }
+    ) => {
+        maxUsedStep = 0;
         return workerWrapper.optimizeOffice(
             division,
             industryData,
             city,
             {
-                min: from,
-                max: to
+                min: operationsJob.min,
+                max: operationsJob.max
             },
             {
-                min: min,
-                max: max
+                min: engineerJob.min,
+                max: engineerJob.max
             },
             {
-                min: min,
-                max: max
+                min: managementJob.min,
+                max: managementJob.max
             },
             maxTotalEmployees,
             item,
             customData,
             sortType
         ).then(result => {
-            console.log(`Use step: ${result.step}`);
+            maxUsedStep = Math.max(maxUsedStep, result.step);
             data.push(...result.data);
             worker.terminate();
         }).catch(reason => {
             console.error(reason);
+            error = reason;
         });
     };
-    console.time("Office benchmark");
     await splitWorkload(
         ns,
-        min,
-        max,
+        {
+            min: min,
+            max: max
+        },
+        {
+            min: min,
+            max: max
+        },
+        {
+            min: min,
+            max: max
+        },
         workload
     );
-    console.timeEnd("Office benchmark");
-
+    if (error) {
+        throw new Error(`Error occurred in worker: ${error}`);
+    }
     data.sort(getComparator(BenchmarkType.OFFICE, sortType));
+
+    let count = 0;
+    while (true) {
+        console.log(`maxUsedStep: ${maxUsedStep}`);
+        if (count >= maxRerun) {
+            break;
+        }
+        if (maxUsedStep === 1) {
+            break;
+        }
+        console.log("Rerun benchmark to get more accurate data");
+        const currentBestResult = data[data.length - 1];
+        console.log("Current best result:");
+        printLog(currentBestResult);
+        await splitWorkload(
+            ns,
+            {
+                min: currentBestResult.operations - maxUsedStep,
+                max: currentBestResult.operations + maxUsedStep
+            },
+            {
+                min: currentBestResult.engineer - maxUsedStep,
+                max: currentBestResult.engineer + maxUsedStep
+            },
+            {
+                min: currentBestResult.management - maxUsedStep,
+                max: currentBestResult.management + maxUsedStep
+            },
+            workload
+        );
+        if (error) {
+            throw new Error(`Error occurred in worker: ${error}`);
+        }
+        data.sort(getComparator(BenchmarkType.OFFICE, sortType));
+        ++count;
+    }
+
     let dataForLogging = data;
     if (dataForLogging.length > 20) {
         dataForLogging = dataForLogging.slice(-20);
     }
-    dataForLogging.forEach(data => {
-        let message = `{operations:${data.operations}, engineer:${data.engineer}, business:${data.business}, management:${data.management}, `;
-        message += `totalExperience:${formatNumber(data.totalExperience)}, `;
-        message +=
-            `rawProduction:${formatNumber(data.rawProduction)}, ` +
-            `maxSellAmount:${formatNumber(data.maxSellAmount)}, ` +
-            `optimalPrice:${formatNumber(data.optimalPrice)}, ` +
-            `profit:${formatNumber(data.profit)}, ` +
-            `salesEfficiency: ${Math.min(data.maxSellAmount / data.rawProduction, 1).toFixed(3)}`;
-        if (isProduct(item)) {
-            message += `, progress: ${data.productDevelopmentProgress.toFixed(5)}}`;
-        } else {
-            message += "}";
-        }
-        console.log(message);
+    dataForLogging.forEach(dataEntry => {
+        printLog(dataEntry);
     });
     return data;
 }

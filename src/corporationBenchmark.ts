@@ -36,7 +36,7 @@ export enum BenchmarkType {
     OFFICE
 }
 
-interface StorageFactoryBenchmarkData {
+export interface StorageFactoryBenchmarkData {
     smartStorageLevel: number;
     warehouseLevel: number;
     smartFactoriesLevel: number;
@@ -50,7 +50,7 @@ interface StorageFactoryBenchmarkData {
     boostMaterialMultiplier: number;
 }
 
-interface WilsonAdvertBenchmarkData {
+export interface WilsonAdvertBenchmarkData {
     wilsonLevel: number;
     advertLevel: number;
     totalCost: number;
@@ -61,14 +61,14 @@ interface WilsonAdvertBenchmarkData {
     costPerAdvertisingFactor: number;
 }
 
-interface OfficeBenchmarkData {
+export interface OfficeBenchmarkData {
     operations: number;
     engineer: number;
     business: number;
     management: number;
     totalExperience: number;
     rawProduction: number;
-    maxSellAmount: number;
+    maxSalesVolume: number;
     optimalPrice: number;
     profit: number;
     productDevelopmentProgress: number;
@@ -340,10 +340,6 @@ export class CorporationBenchmark {
                 demand: number;
                 competition: number;
             };
-            totalExperience?: {
-                minTotalExperience: number;
-                maxTotalExperience: number;
-            };
             step?: number;
         },
         sortType: string
@@ -366,19 +362,22 @@ export class CorporationBenchmark {
             }
         }
 
-        let minTotalExperience = customData.office.totalExperience;
-        let maxTotalExperience = minTotalExperience;
-        if (customData.totalExperience) {
-            minTotalExperience = customData.totalExperience.minTotalExperience;
-            maxTotalExperience = customData.totalExperience.maxTotalExperience;
+        const numberOfNewEmployees = maxTotalEmployees - customData.office.numEmployees;
+        if (numberOfNewEmployees < 0) {
+            throw new Error("Invalid employees' data. maxTotalEmployees is less than current number of employees.");
         }
-        const totalExperienceIncrementStep = Math.max((maxTotalExperience - minTotalExperience) / 5, 100);
-
+        const totalExperience = customData.office.totalExperience + 75 * numberOfNewEmployees;
         const avgStats = await calculateEmployeeStats(
             customData.office,
             customData.corporationUpgradeLevels,
             customData.divisionResearches
         );
+        for (let i = 0; i < numberOfNewEmployees; i++) {
+            avgStats.avgIntelligence = (avgStats.avgIntelligence * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
+            avgStats.avgCharisma = (avgStats.avgCharisma * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
+            avgStats.avgCreativity = (avgStats.avgCreativity * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
+            avgStats.avgEfficiency = (avgStats.avgEfficiency * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
+        }
 
         let itemMultiplier: number;
         if (itemIsProduct) {
@@ -413,126 +412,123 @@ export class CorporationBenchmark {
         );
         const researchSalesMultiplier = getResearchSalesMultiplier(customData.divisionResearches);
 
-        let step = Math.max(Math.floor(maxTotalEmployees / 60), 1);
+        let step = Math.max(
+            Math.floor((operationsJob.max - operationsJob.min) / 60),
+            Math.floor((engineerJob.max - engineerJob.min) / 60),
+            Math.floor((managementJob.max - managementJob.min) / 60),
+            1
+        );
         if (customData.step) {
             step = customData.step;
         }
-        const maxBusiness = Math.floor(maxTotalEmployees / 2);
 
         const comparator = getComparator(BenchmarkType.OFFICE, sortType);
         const priorityQueue = new PriorityQueue(comparator);
-        for (let totalExperience = minTotalExperience;
-             totalExperience <= maxTotalExperience;
-             totalExperience += totalExperienceIncrementStep) {
-            for (let operations = operationsJob.min; operations <= operationsJob.max; operations += step) {
-                for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += step) {
-                    for (let management = managementJob.min; management <= managementJob.max; management += step) {
-                        if (operations + engineer === 0
-                            || operations + engineer + management > maxTotalEmployees) {
-                            continue;
-                        }
-                        for (let business = Math.min(maxTotalEmployees - (operations + engineer + management), maxBusiness);
-                             business > 0;
-                             business -= step) {
-                            const employeesProduction = calculateEmployeeProductionByJobs(
-                                {
-                                    avgIntelligence: avgStats.avgIntelligence,
-                                    avgCharisma: avgStats.avgCharisma,
-                                    avgCreativity: avgStats.avgCreativity,
-                                    avgEfficiency: avgStats.avgEfficiency,
-                                    avgMorale: customData.office.avgMorale,
-                                    avgEnergy: customData.office.avgEnergy,
-                                    totalExperience: totalExperience,
-                                    employeeJobs: {
-                                        operations: operations,
-                                        engineer: engineer,
-                                        business: business,
-                                        management: management,
-                                        researchAndDevelopment: 0,
-                                        intern: 0,
-                                        unassigned: 0
-                                    }
-                                },
-                                customData.corporationUpgradeLevels,
-                                customData.divisionResearches
-                            );
-                            const rawProduction = calculateDivisionRawProduction(
-                                itemIsProduct,
-                                {
-                                    operationsProduction: employeesProduction.operationsProduction,
-                                    engineerProduction: employeesProduction.engineerProduction,
-                                    managementProduction: employeesProduction.managementProduction,
-                                },
-                                division.productionMult,
-                                customData.corporationUpgradeLevels,
-                                customData.divisionResearches
-                            );
-
-                            const businessFactor = getBusinessFactor(employeesProduction.businessProduction);
-                            const advertisingFactor = getAdvertisingFactors(
-                                division.awareness,
-                                division.popularity,
-                                industryData.advertisingFactor!)
-                                [0];
-                            const maxSellAmount =
-                                itemMultiplier *
-                                businessFactor *
-                                advertisingFactor *
-                                marketFactor *
-                                salesBotUpgradeBenefit *
-                                researchSalesMultiplier;
-
-                            if (itemIsProduct || customData.demandCompetition) {
-                                if (maxSellAmount < rawProduction) {
-                                    // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                                    // console.log(`rawProduction: ${rawProduction}, maxSellAmount: ${maxSellAmount}`);
-                                    break;
-                                }
-                            } else {
-                                // Add margin error in case of output materials and no custom data for demand/competition
-                                if (maxSellAmount < rawProduction * 0.9) {
-                                    // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                                    // console.log(`rawProduction: ${rawProduction}, maxSellAmount: ${maxSellAmount}`);
-                                    break;
-                                }
-                            }
-
-                            const optimalPrice = markupLimit / Math.sqrt(rawProduction / maxSellAmount) + marketPrice;
-
-                            const profit = (rawProduction * 10) * optimalPrice;
-
-                            let productDevelopmentProgress = 0;
-                            if (itemIsProduct) {
-                                const totalProductionForProductDev = employeesProduction.operationsProduction
-                                    + employeesProduction.engineerProduction
-                                    + employeesProduction.managementProduction;
-                                const managementFactor = 1 + employeesProduction.managementProduction / (1.2 * totalProductionForProductDev);
-                                productDevelopmentProgress = 0.01 * (
-                                        Math.pow(employeesProduction.engineerProduction, 0.34)
-                                        + Math.pow(employeesProduction.operationsProduction, 0.2)
-                                    )
-                                    * managementFactor;
-                            }
-
-                            const dataEntry = {
+        for (let operations = operationsJob.min; operations <= operationsJob.max; operations += step) {
+            for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += step) {
+                for (let management = managementJob.min; management <= managementJob.max; management += step) {
+                    if (operations + engineer === 0
+                        || operations + engineer + management >= maxTotalEmployees) {
+                        continue;
+                    }
+                    const business = maxTotalEmployees - (operations + engineer + management);
+                    const employeesProduction = calculateEmployeeProductionByJobs(
+                        {
+                            avgIntelligence: avgStats.avgIntelligence,
+                            avgCharisma: avgStats.avgCharisma,
+                            avgCreativity: avgStats.avgCreativity,
+                            avgEfficiency: avgStats.avgEfficiency,
+                            avgMorale: customData.office.avgMorale,
+                            avgEnergy: customData.office.avgEnergy,
+                            totalExperience: totalExperience,
+                            employeeJobs: {
                                 operations: operations,
                                 engineer: engineer,
                                 business: business,
                                 management: management,
-                                totalExperience: totalExperience,
-                                rawProduction: rawProduction,
-                                maxSellAmount: maxSellAmount,
-                                optimalPrice: optimalPrice,
-                                profit: profit,
-                                productDevelopmentProgress: productDevelopmentProgress,
-                            };
-                            if (priorityQueue.size() < 20) {
-                                priorityQueue.push(dataEntry);
-                            } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
-                                priorityQueue.pop();
-                                priorityQueue.push(dataEntry);
+                                researchAndDevelopment: 0,
+                                intern: 0,
+                                unassigned: 0
                             }
+                        },
+                        customData.corporationUpgradeLevels,
+                        customData.divisionResearches
+                    );
+                    const rawProduction = calculateDivisionRawProduction(
+                        itemIsProduct,
+                        {
+                            operationsProduction: employeesProduction.operationsProduction,
+                            engineerProduction: employeesProduction.engineerProduction,
+                            managementProduction: employeesProduction.managementProduction,
+                        },
+                        division.productionMult,
+                        customData.corporationUpgradeLevels,
+                        customData.divisionResearches
+                    );
+
+                    const businessFactor = getBusinessFactor(employeesProduction.businessProduction);
+                    const advertisingFactor = getAdvertisingFactors(
+                        division.awareness,
+                        division.popularity,
+                        industryData.advertisingFactor!)
+                        [0];
+                    const maxSalesVolume =
+                        itemMultiplier *
+                        businessFactor *
+                        advertisingFactor *
+                        marketFactor *
+                        salesBotUpgradeBenefit *
+                        researchSalesMultiplier;
+
+                    if (itemIsProduct || customData.demandCompetition) {
+                        if (maxSalesVolume < rawProduction) {
+                            // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
+                            // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
+                            break;
                         }
+                    } else {
+                        // Add margin error in case of output materials and no custom data for demand/competition
+                        if (maxSalesVolume < rawProduction * 0.9) {
+                            // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
+                            // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
+                            break;
+                        }
+                    }
+
+                    const optimalPrice = markupLimit / Math.sqrt(rawProduction / maxSalesVolume) + marketPrice;
+
+                    const profit = (rawProduction * 10) * optimalPrice;
+
+                    let productDevelopmentProgress = 0;
+                    if (itemIsProduct) {
+                        const totalProductionForProductDev = employeesProduction.operationsProduction
+                            + employeesProduction.engineerProduction
+                            + employeesProduction.managementProduction;
+                        const managementFactor = 1 + employeesProduction.managementProduction / (1.2 * totalProductionForProductDev);
+                        productDevelopmentProgress = 0.01 * (
+                                Math.pow(employeesProduction.engineerProduction, 0.34)
+                                + Math.pow(employeesProduction.operationsProduction, 0.2)
+                            )
+                            * managementFactor;
+                    }
+
+                    const dataEntry: OfficeBenchmarkData = {
+                        operations: operations,
+                        engineer: engineer,
+                        business: business,
+                        management: management,
+                        totalExperience: totalExperience,
+                        rawProduction: rawProduction,
+                        maxSalesVolume: maxSalesVolume,
+                        optimalPrice: optimalPrice,
+                        profit: profit,
+                        productDevelopmentProgress: productDevelopmentProgress,
+                    };
+                    if (priorityQueue.size() < 20) {
+                        priorityQueue.push(dataEntry);
+                    } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
+                        priorityQueue.pop();
+                        priorityQueue.push(dataEntry);
                     }
                 }
             }
