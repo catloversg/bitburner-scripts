@@ -1,14 +1,14 @@
-import {NS} from "@ns";
+import {AutocompleteData, NS} from "@ns";
 import {NetscriptExtension} from "/libs/NetscriptExtension";
 
-export function autocomplete(data: object, args: string[]) {
-    // @ts-ignore
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return [...data.servers];
 }
 
 let nsx: NetscriptExtension;
 
-export async function main(ns: NS): Promise<void> {
+export function main(ns: NS): void {
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
 

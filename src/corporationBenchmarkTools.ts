@@ -57,9 +57,9 @@ async function splitWorkload(
         max: number;
     },
     workload: Workload) {
-    let numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
+    const numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
     const workers: Worker[] = [];
-    const promises: Promise<any>[] = [];
+    const promises: Promise<void>[] = [];
     let current = operationsJob.min;
     const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
     console.time("Office benchmark execution time");
@@ -150,7 +150,7 @@ export async function optimizeOffice(
     const min = 1;
     const max = Math.floor(maxTotalEmployees * 0.6);
     let maxUsedStep = 0;
-    let error: any;
+    let error: unknown;
     const workload: Workload = async (
         worker: Worker,
         workerWrapper: Remote<CorporationBenchmark>,
@@ -214,7 +214,7 @@ export async function optimizeOffice(
         workload
     );
     if (error) {
-        throw new Error(`Error occurred in worker: ${error}`);
+        throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
     }
     data.sort(getComparator(BenchmarkType.OFFICE, sortType));
 
@@ -248,7 +248,7 @@ export async function optimizeOffice(
             workload
         );
         if (error) {
-            throw new Error(`Error occurred in worker: ${error}`);
+            throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
         }
         data.sort(getComparator(BenchmarkType.OFFICE, sortType));
         ++count;

@@ -5,13 +5,18 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "lint": "eslint .",
     "build": "node build.mjs",
     "watch": "npm run build && node watch.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.19.8",
+    "@typescript-eslint/parser": "^6.13.2",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.3",
+    "esbuild": "^0.19.9",
     "fast-glob": "^3.3.2",
     "cheap-watch": "1.0.4",
-    "ws": "^8.14.2"
+    "ws": "^8.15.0"
   }
 }

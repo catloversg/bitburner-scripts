@@ -1,4 +1,4 @@
-import {Corporation, NS} from "@ns";
+import {AutocompleteData, Corporation, NS} from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlags,
@@ -22,7 +22,8 @@ import {
     waitUntilHavingEnoughResearchPoints
 } from "/corporationUtils";
 
-export function autocomplete(data: any, args: string[]) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
 }
 

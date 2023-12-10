@@ -21,6 +21,9 @@ interface ImportNode {
     end: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Node = any;
+
 const homeScripts = new Map<ScriptFilePath, Script>();
 
 export function generateBlobUrl(ns: NS, scriptFilePath: ScriptFilePath): string {
@@ -47,7 +50,7 @@ function generateBlobUrlForScript(ns: NS, script: Script, scripts: Map<ScriptFil
     const ast = acorn.parse(script.code, {sourceType: "module", ecmaVersion: "latest", ranges: true});
     const importNodes: ImportNode[] = [];
     walk.simple(ast, {
-        ImportDeclaration(node: any) {
+        ImportDeclaration(node: Node) {
             if (!node.source) {
                 return;
             }
@@ -57,7 +60,7 @@ function generateBlobUrlForScript(ns: NS, script: Script, scripts: Map<ScriptFil
                 end: node.source.range[1] - 1,
             });
         },
-        ExportNamedDeclaration(node: any) {
+        ExportNamedDeclaration(node: Node) {
             if (!node.source) {
                 return;
             }
@@ -67,7 +70,7 @@ function generateBlobUrlForScript(ns: NS, script: Script, scripts: Map<ScriptFil
                 end: node.source.range[1] - 1,
             });
         },
-        ExportAllDeclaration(node: any) {
+        ExportAllDeclaration(node: Node) {
             if (!node.source) {
                 return;
             }
@@ -85,7 +88,7 @@ function generateBlobUrlForScript(ns: NS, script: Script, scripts: Map<ScriptFil
         if (!filename) {
             throw new Error(`Failed to parse import: ${node.filename}`);
         }
-        let importedScript = scripts.get(filename);
+        const importedScript = scripts.get(filename);
         if (!importedScript) {
             throw new Error(`Invalid script path: ${filename}`);
         }

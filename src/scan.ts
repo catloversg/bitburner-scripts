@@ -1,14 +1,15 @@
-import {NS} from "@ns";
+import {AutocompleteData, NS} from "@ns";
 import {NetscriptExtension, ScanServerInfo} from "libs/NetscriptExtension";
 import {PRIVATE_SERVER_NAME_PREFIX} from "/libs/constants";
 
-export function autocomplete(data: object, args: string[]) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return ["simple", "full"];
 }
 
 let nsx: NetscriptExtension;
 
-export async function main(ns: NS) {
+export function main(ns: NS): void {
     nsx = new NetscriptExtension(ns);
 
     const useDFS = false;

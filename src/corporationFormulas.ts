@@ -204,7 +204,7 @@ function calculateGenericMaxAffordableUpgradeLevel(basePrice: number, priceMulti
 }
 
 export function getUpgradeCost(upgradeName: CorpUpgradeName, fromLevel: number, toLevel: number): number {
-    let upgradeData = CorpUpgradesData[upgradeName];
+    const upgradeData = CorpUpgradesData[upgradeName];
     if (!upgradeData) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
@@ -212,7 +212,7 @@ export function getUpgradeCost(upgradeName: CorpUpgradeName, fromLevel: number, 
 }
 
 export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromLevel: number, maxCost: number): number {
-    let upgradeData = CorpUpgradesData[upgradeName];
+    const upgradeData = CorpUpgradesData[upgradeName];
     if (!upgradeData) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
@@ -228,7 +228,7 @@ export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromL
 export function getUpgradeBenefit(upgradeName: CorpUpgradeName, upgradeLevel: number): number {
     // For DreamSense, value is not a multiplier, so it starts at 0
     let value = (upgradeName === UpgradeName.DREAM_SENSE) ? 0 : 1;
-    let benefit = CorpUpgradesData[upgradeName].benefit;
+    const benefit = CorpUpgradesData[upgradeName].benefit;
     if (!benefit) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
@@ -411,7 +411,7 @@ export function calculateDivisionRawProduction(
     }
 
     // Multiplier from Smart Factories
-    let upgradeMultiplier = 1 + corporationUpgradeLevels[UpgradeName.SMART_FACTORIES] * CorpUpgradesData[UpgradeName.SMART_FACTORIES].benefit;
+    const upgradeMultiplier = 1 + corporationUpgradeLevels[UpgradeName.SMART_FACTORIES] * CorpUpgradesData[UpgradeName.SMART_FACTORIES].benefit;
     // Multiplier from researches
     let researchMultiplier = 1;
     researchMultiplier *=
@@ -562,21 +562,25 @@ export async function calculateEmployeeStats(
             * (0.6 * effectiveIntelligence + 0.1 * effectiveCharisma + exp + 0.5 * effectiveCreativity + effectiveEfficiency)
             - office.employeeProductionByJob[CorpEmployeePosition.OPERATIONS];
     };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f2 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
         return office.employeeJobs[CorpEmployeePosition.ENGINEER] * productionBase
             * (effectiveIntelligence + 0.1 * effectiveCharisma + 1.5 * exp + effectiveEfficiency)
             - office.employeeProductionByJob[CorpEmployeePosition.ENGINEER];
     };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f3 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
         return office.employeeJobs[CorpEmployeePosition.BUSINESS] * productionBase
             * (0.4 * effectiveIntelligence + effectiveCharisma + 0.5 * exp)
             - office.employeeProductionByJob[CorpEmployeePosition.BUSINESS];
     };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f4 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
         return office.employeeJobs[CorpEmployeePosition.MANAGEMENT] * productionBase
             * (2 * effectiveCharisma + exp + 0.2 * effectiveCreativity + 0.7 * effectiveEfficiency)
             - office.employeeProductionByJob[CorpEmployeePosition.MANAGEMENT];
     };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f5 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
         return office.employeeJobs[CorpEmployeePosition.RESEARCH_DEVELOPMENT] * productionBase
             * (1.5 * effectiveIntelligence + 0.8 * exp + effectiveCreativity + 0.5 * effectiveEfficiency)

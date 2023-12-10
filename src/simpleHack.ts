@@ -1,7 +1,7 @@
-import {NS} from "@ns";
+import {AutocompleteData, NS} from "@ns";
 
-export function autocomplete(data: object, args: string[]) {
-    // @ts-ignore
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return [...data.servers];
 }
 

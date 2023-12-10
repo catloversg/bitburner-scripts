@@ -9,7 +9,7 @@ export async function main(ns: NS): Promise<void> {
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
 
-    let threads = ns.args[0];
+    const threads = ns.args[0];
     assertIsNumber(threads, "Invalid number of threads");
     // Run share script
     while (true) {

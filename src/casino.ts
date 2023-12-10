@@ -81,7 +81,7 @@ function assistRoulette(ns: NS) {
     const rouletteGuessedSpinsElement = casinoToolsDiv.querySelector<HTMLInputElement>("#roulette-guessed-spins")!;
     const rouletteSpinHistoryElement = casinoToolsDiv.querySelector<HTMLInputElement>("#roulette-spin-history")!;
     // Add event listeners
-    casinoToolsDiv!.querySelector("#btn-guess-seed")!.addEventListener("click", event => {
+    casinoToolsDiv.querySelector("#btn-guess-seed")!.addEventListener("click", () => {
         const maxSeed = 30e6;
         const timestamp = new Date().getTime();
         const zeroDate = timestamp - (timestamp % maxSeed);
@@ -117,17 +117,17 @@ function assistRoulette(ns: NS) {
             possibleSeed = possibleSeed + 1;
         }
     });
-    casinoToolsDiv!.querySelector("#btn-guess-spins")!.addEventListener("click", event => {
+    casinoToolsDiv.querySelector("#btn-guess-spins")!.addEventListener("click", () => {
         const rng = new WHRNG(parseNumber(rouletteSeedElement.value));
         rouletteGuessedSpinsElement.value = "";
         for (let i = 0; i < 100; i++) {
             rouletteGuessedSpinsElement.value += `${Math.floor(rng.random() * 37)} `;
         }
     });
-    casinoToolsDiv!.querySelector("#btn-highlight-next-guess")!.addEventListener("click", event => {
+    casinoToolsDiv.querySelector("#btn-highlight-next-guess")!.addEventListener("click", () => {
         highlightNextGuessedSpin();
     });
-    casinoToolsDiv!.querySelector("#btn-exit")!.addEventListener("click", event => {
+    casinoToolsDiv.querySelector("#btn-exit")!.addEventListener("click", () => {
         casinoToolsDiv!.remove();
     });
 
@@ -139,22 +139,24 @@ function assistRoulette(ns: NS) {
 
     const spinResultRewardElement = gameRootElement.querySelector("h4:nth-of-type(3)")!;
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function getSpinResult() {
         return spinResultRewardElement.textContent!.split(" ")[0];
     }
 
     const betButtons = gameRootElement.querySelectorAll("button");
     betButtons.forEach(betButton => {
-        betButton.addEventListener("click", async (event) => {
-            await ns.sleep(2000);
-            rouletteSpinHistoryElement.value += ` ${getSpinResultNumber()}`;
-            highlightNextGuessedSpin();
+        betButton.addEventListener("click", () => {
+            ns.sleep(2000).then(()=> {
+                rouletteSpinHistoryElement.value += ` ${getSpinResultNumber()}`;
+                highlightNextGuessedSpin();
+            });
         });
     });
 
     function highlightBetButton(number: number) {
         for (const betButton of betButtons) {
-            if (parseNumber(betButton.textContent!) !== number) {
+            if (parseNumber(betButton.textContent) !== number) {
                 betButton.style.backgroundColor = "#333";
                 continue;
             }
@@ -169,8 +171,8 @@ function assistRoulette(ns: NS) {
     }
 
     function highlightNextGuessedSpin() {
-        const guessedSpins = rouletteGuessedSpinsElement.value!.trim();
-        const spinHistory = rouletteSpinHistoryElement.value!.trim();
+        const guessedSpins = rouletteGuessedSpinsElement.value.trim();
+        const spinHistory = rouletteSpinHistoryElement.value.trim();
         if (guessedSpins === "" || spinHistory === "") {
             resetBetButtons();
             return;

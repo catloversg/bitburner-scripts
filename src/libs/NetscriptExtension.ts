@@ -1,4 +1,4 @@
-import {NS, RunOptions, ScriptArg} from "@ns";
+import {AutocompleteData, NS, RunOptions, ScriptArg} from "@ns";
 import {RESERVED_RAM_ON_HOME_SERVER, SHARE_SCRIPT_NAME, STOCK_MARKET_COMMISSION_FEE} from "/libs/constants";
 
 export interface ScanServerInfo {
@@ -34,6 +34,7 @@ export class NetscriptExtension {
 
     scanDFS(
         startingHostname: string,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         action = (_: ScanServerInfo) => {
         }
     ) {
@@ -69,6 +70,7 @@ export class NetscriptExtension {
 
     scanBFS(
         startingHostname: string,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         action = (_: ScanServerInfo) => {
         }
     ) {
@@ -127,7 +129,7 @@ export class NetscriptExtension {
             requiredThreads = threadOrOptions.threads;
         }
         if (requiredThreads === undefined) {
-            throw new Error(`Invalid param threadOrOptions: ${threadOrOptions}`);
+            throw new Error(`Invalid param threadOrOptions: ${JSON.stringify(threadOrOptions)}`);
         }
         const runnerProcesses = [];
         for (const runner of runners) {
@@ -409,16 +411,15 @@ export class NetscriptExtension {
             if (sharesLong === 0 && sharesShort === 0) {
                 return;
             }
-            let cost = sharesLong * avgLongPrice;
             if (sharesLong > 0) {
-                let longSharesProfit = sharesLong * (this.ns.stock.getBidPrice(stockSymbol) - avgLongPrice) - (2 * STOCK_MARKET_COMMISSION_FEE);
-                let longSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesLong, "Long");
+                const longSharesProfit = sharesLong * (this.ns.stock.getBidPrice(stockSymbol) - avgLongPrice) - (2 * STOCK_MARKET_COMMISSION_FEE);
+                const longSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesLong, "Long");
                 currentProfit += longSharesProfit;
                 currentWorth += longSharesWorth;
             }
             if (sharesShort > 0) {
-                let shortSharesProfit = sharesShort * (avgShortPrice - this.ns.stock.getAskPrice(stockSymbol)) - (2 * STOCK_MARKET_COMMISSION_FEE);
-                let shortSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesShort, "Short");
+                const shortSharesProfit = sharesShort * (avgShortPrice - this.ns.stock.getAskPrice(stockSymbol)) - (2 * STOCK_MARKET_COMMISSION_FEE);
+                const shortSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesShort, "Short");
                 currentProfit += shortSharesProfit;
                 currentWorth += shortSharesWorth;
             }
@@ -438,7 +439,7 @@ export class NetscriptExtension {
     }
 }
 
-export function parseAutoCompleteDataFromDefaultConfig(data: any, defaultConfig: NetscriptFlagsSchema) {
+export function parseAutoCompleteDataFromDefaultConfig(data: AutocompleteData, defaultConfig: NetscriptFlagsSchema) {
     data.flags(defaultConfig);
     return ["true", "false"];
 }

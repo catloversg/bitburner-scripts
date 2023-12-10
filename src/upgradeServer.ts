@@ -35,7 +35,7 @@ export async function main(ns: NS): Promise<void> {
     ns.disableLog("ALL");
 
     const reservedMoney = config.reservedMoney;
-    let limitPurchasableRAMBasedOnHomeServerRAM = config.limitPurchasableRAMBasedOnHomeServerRAM;
+    const limitPurchasableRAMBasedOnHomeServerRAM = config.limitPurchasableRAMBasedOnHomeServerRAM;
     let maxPurchasableRAM = ns.getPurchasedServerMaxRam();
     if (config.useCustomMaxPurchasableRAM) {
         maxPurchasableRAM = config.customMaxPurchasableRAM;

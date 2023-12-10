@@ -1,12 +1,12 @@
-import {NS} from "@ns";
+import {AutocompleteData, NS} from "@ns";
 import {assertIsString} from "/libs/utils";
 import {GROW_SCRIPT_NAME, HACK_SCRIPT_NAME, LOG_FOLDER, WEAKEN_SCRIPT_NAME} from "/libs/constants";
 import {CompletedProgramName} from "/libs/Enums";
 import {parseNumber} from "/libs/utils";
 import {NetscriptExtension, RunnerProcess} from "/libs/NetscriptExtension";
 
-export function autocomplete(data: object, args: string[]) {
-    // @ts-ignore
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return [...data.servers];
 }
 
@@ -25,11 +25,11 @@ interface Target {
     readonly maxSecurity: number;
     readonly minSecurity: number;
     skip: boolean;
-    currentAction: string;
+    currentAction: Action;
     currentActionCompleteAt: number;
     currentThreads: number;
     currentActionLatestPid: number;
-    previousAction: string;
+    previousAction: Action;
     hackMoney: number;
     totalWeakenTime: number;
     totalGrowTime: number;
@@ -123,7 +123,7 @@ function checkRunningProcessesAndUpdateTargetInfo(ns: NS, logFilename: string, t
             .scriptArgs[3]
             .toString()
             .split("|");
-        target.currentAction = loggingParams[1];
+        target.currentAction = loggingParams[1] as Action;
         target.currentThreads = parseNumber(loggingParams[2]);
         target.currentActionCompleteAt = parseNumber(loggingParams[3]);
         target.currentActionLatestPid = latestProcess.pid;
@@ -236,7 +236,7 @@ export async function main(ns: NS): Promise<void> {
         for (const target of targets) {
             // Only attack servers with root access and has "potential" required hacking skill
             if (!ns.getServer(target.hostname).hasAdminRights
-                || ns.getHackingLevel() * config.hackingSkillMultiplierWhenChoosingTarget < target.requiredHackingSkill!) {
+                || ns.getHackingLevel() * config.hackingSkillMultiplierWhenChoosingTarget < target.requiredHackingSkill) {
                 target.skip = true;
                 target.currentAction = Action.SKIP;
                 continue;
@@ -266,7 +266,7 @@ export async function main(ns: NS): Promise<void> {
             // - Security at min
             // - It's not the first time we attack this target
             // - Previous action is not HACK (We use HGW)
-            let securityDiff = targetCurrentSecurity - target.minSecurity;
+            const securityDiff = targetCurrentSecurity - target.minSecurity;
             if (securityDiff > 0.1 && targetCurrentSecurity !== target.maxSecurity && target.previousAction !== Action.HACK) {
                 action = Action.WEAKEN;
                 target.hackMoney = 0;

@@ -50,9 +50,6 @@ async function tradeStocksWithS4MarketData(ns: NS, config: Config) {
             }
             const position = ns.stock.getPosition(stockSymbol);
             const sharesLong = position[0];
-            const avgLongPrice = position[1];
-            const sharesShort = position[2];
-            const avgShortPrice = position[3];
             const forecast = ns.stock.getForecast(stockSymbol);
 
             // Check if we want to sell long
@@ -147,9 +144,7 @@ async function tradeStocksWithoutS4MarketData(ns: NS, config: Config) {
             }
             const position = ns.stock.getPosition(stockSymbol);
             const sharesLong = position[0];
-            const avgLongPrice = position[1];
             const sharesShort = position[2];
-            const avgShortPrice = position[3];
             const forecast = getForecast(stockPriceChanges.get(stockSymbol)!);
 
             // Check if we want to sell long

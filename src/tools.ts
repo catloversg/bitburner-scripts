@@ -1,4 +1,4 @@
-import {NS} from "@ns";
+import {AutocompleteData, NS} from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlagsSchema,
@@ -6,7 +6,8 @@ import {
 } from "/libs/NetscriptExtension";
 import {GROW_SCRIPT_NAME, HACK_SCRIPT_NAME, STOCK_HISTORY_LOGS_PREFIX, WEAKEN_SCRIPT_NAME} from "/libs/constants";
 
-export function autocomplete(data: any, args: string[]) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
 }
 

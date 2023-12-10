@@ -6,6 +6,7 @@ import {NetscriptExtension} from "/libs/NetscriptExtension";
  *
  * @param input
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function isPrimeNumberNotOptimized(input: number): boolean {
     if (input === 2) {
         return true;
@@ -22,6 +23,7 @@ function isPrimeNumberNotOptimized(input: number): boolean {
     return true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function isPrimeNumber(input: number): boolean {
     if (input === 2 || input === 3) {
         return true;
@@ -106,7 +108,7 @@ function contractTypeToString(contractType: ContractType): string {
 
 let nsx: NetscriptExtension;
 
-export async function main(ns: NS): Promise<void> {
+export function main(ns: NS): void {
     nsx = new NetscriptExtension(ns);
 
     ns.disableLog("ALL");
@@ -120,7 +122,7 @@ export async function main(ns: NS): Promise<void> {
             // ns.print(`${host.hostname} - ${filename} - ${contractType}`);
             // ns.print(ns.codingcontract.getDescription(filename, host.hostname));
             switch (contractType) {
-                case contractTypeToString(ContractType["Find Largest Prime Factor"]):
+                case contractTypeToString(ContractType["Find Largest Prime Factor"]): {
                     const input = ns.codingcontract.getData(filename, host.hostname);
                     ns.print(`Input: ${input}`);
                     const output = findLargestPrimeFactor(input);
@@ -128,6 +130,7 @@ export async function main(ns: NS): Promise<void> {
                     const result = ns.codingcontract.attempt(output, filename, host.hostname);
                     ns.print(result !== "" ? `Success. Reward: ${result}` : "Fail");
                     break;
+                }
             }
         });
     });

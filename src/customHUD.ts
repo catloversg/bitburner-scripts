@@ -2,17 +2,64 @@ import {NS} from "@ns";
 import {NetscriptExtension} from "/libs/NetscriptExtension";
 import {DAEMON_SCRIPT_NAME} from "/libs/constants";
 import {parseNumber} from "/libs/utils";
-import {CorpEmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
-import {getRecordValues} from "/libs/Record";
+import {CityName, CorpEmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
+import {getRecordEntries, getRecordValues, PartialRecord} from "/libs/Record";
 import {CorpUpgradesData} from "/data/CorpUpgradesData";
-
-declare global {
-    var Player: any;
-    var saveObject: any;
-}
 
 let nsx: NetscriptExtension;
 let doc: Document;
+
+interface Material {
+    name: MaterialName;
+    stored: number;
+}
+
+interface Office {
+    size: number;
+    numEmployees: number;
+    employeeNextJobs: {
+        Operations: number,
+        Engineer: number,
+        Business: number,
+        Management: number,
+        "Research & Development": number,
+        Intern: number,
+        Unassigned: number,
+        total: number
+    };
+}
+
+interface Warehouse {
+    materials: Record<MaterialName, Material>;
+    level: number;
+    updateSize: (corporation: Corporation, division: Division) => void;
+}
+
+interface Division {
+    name: string;
+    researchPoints: number;
+    requiredMaterials: PartialRecord<MaterialName, number>;
+    offices: PartialRecord<CityName, Office>;
+    warehouses: PartialRecord<CityName, Warehouse>;
+}
+
+interface Corporation {
+    funds: number;
+    storedCycles: number;
+    divisions: Division[];
+    upgrades: Record<UpgradeName, { level: number, value: number }>;
+}
+
+declare global {
+    // eslint-disable-next-line no-var
+    var Player: {
+        corporation: Corporation
+    };
+    // eslint-disable-next-line no-var
+    var saveObject: {
+        getSaveString: () => string
+    };
+}
 
 const enableTestingTools = true;
 let runCorpMaintain = false;
@@ -32,7 +79,7 @@ function rerun(ns: NS) {
 async function getObjectStore(): Promise<IDBObjectStore> {
     return new Promise((resolve, reject) => {
         const request = window.indexedDB.open("bitburnerSave", 1);
-        request.onerror = (event) => {
+        request.onerror = () => {
             console.error("Error occurred when interacting with IndexDB. Result:", request.result);
             reject("Error occurred when interacting with IndexDB");
         };
@@ -44,47 +91,47 @@ async function getObjectStore(): Promise<IDBObjectStore> {
     });
 }
 
-async function getAllSaveDataKeys(): Promise<any> {
-    return new Promise((resolve, reject) => {
+async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
+    return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
-            let requestAllKeys = objectStore.getAllKeys();
-            requestAllKeys.onsuccess = () => resolve(requestAllKeys.result);
+            const requestGetAllKeys = objectStore.getAllKeys();
+            requestGetAllKeys.onsuccess = () => resolve(requestGetAllKeys.result);
         });
     });
 }
 
-async function getSaveData(key: string): Promise<any> {
-    return new Promise((resolve, reject) => {
+async function getSaveData(key: string): Promise<string> {
+    return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
-            let requestget = objectStore.get(key);
-            requestget.onsuccess = () => resolve(requestget.result);
+            const requestGet = objectStore.get(key);
+            requestGet.onsuccess = () => resolve(requestGet.result as string);
         });
     });
 }
 
 async function insertSaveData(saveData: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
-            const request = objectStore.put(saveData, new Date().toISOString());
-            request.onsuccess = () => resolve();
+            const requestPut = objectStore.put(saveData, new Date().toISOString());
+            requestPut.onsuccess = () => resolve();
         });
     });
 }
 
 async function updateSaveData(key: string, saveData: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
-            const request = objectStore.put(saveData, key);
-            request.onsuccess = () => resolve();
+            const requestPut = objectStore.put(saveData, key);
+            requestPut.onsuccess = () => resolve();
         });
     });
 }
 
-async function deleteSaveData(key: string) {
-    return new Promise((resolve, reject) => {
+async function deleteSaveData(key: string): Promise<void> {
+    return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
-            let requestDelete = objectStore.delete(key);
-            requestDelete.onsuccess = () => resolve(requestDelete.result);
+            const requestDelete = objectStore.delete(key);
+            requestDelete.onsuccess = () => resolve();
         });
     });
 }
@@ -177,19 +224,19 @@ function createTestingTool() {
         testingToolsDiv = doc.querySelector("#testing-tools")!;
         const savaDataSelectElement = doc.getElementById("select-save-data") as HTMLSelectElement;
 
-        async function reloadSaveDataSelectElement() {
+        const reloadSaveDataSelectElement = async () => {
             const keys = await getAllSaveDataKeys();
             savaDataSelectElement.innerHTML = "";
             for (const key of keys) {
                 const option = document.createElement("option");
-                option.text = key;
-                option.value = key;
+                option.text = key as string;
+                option.value = key as string;
                 savaDataSelectElement.add(option);
             }
-        }
+        };
 
         reloadSaveDataSelectElement().then();
-        doc.getElementById("btn-corp-maintain")!.addEventListener("click", async function () {
+        doc.getElementById("btn-corp-maintain")!.addEventListener("click", function () {
             runCorpMaintain = true;
         });
         doc.getElementById("btn-unlimited-bonus-time")!.addEventListener("click", function () {
@@ -198,13 +245,13 @@ function createTestingTool() {
         doc.getElementById("btn-remove-bonus-time")!.addEventListener("click", function () {
             globalThis.Player.corporation.storedCycles = 0;
         });
-        doc.getElementById("btn-corp-round")!.addEventListener("click", async function () {
+        doc.getElementById("btn-corp-round")!.addEventListener("click", function () {
             runCorpRound = true;
         });
-        doc.getElementById("btn-corp-test")!.addEventListener("click", async function () {
+        doc.getElementById("btn-corp-test")!.addEventListener("click", function () {
             runCorpTest = true;
         });
-        doc.getElementById("btn-import-save")!.addEventListener("click", async function () {
+        doc.getElementById("btn-import-save")!.addEventListener("click", function () {
             const fileInput = doc.getElementById("testing-tools-file-input") as HTMLInputElement;
             fileInput.onchange = (e) => {
                 const file = (<HTMLInputElement>e.target).files![0];
@@ -225,14 +272,14 @@ function createTestingTool() {
             };
             fileInput.click();
         });
-        doc.getElementById("btn-delete-all-scripts")!.addEventListener("click", async function () {
+        doc.getElementById("btn-delete-all-scripts")!.addEventListener("click", function () {
             runDelScripts = true;
         });
-        doc.getElementById("btn-reload")!.addEventListener("click", async function () {
+        doc.getElementById("btn-reload")!.addEventListener("click", function () {
             reload = true;
             testingToolsDiv!.remove();
         });
-        doc.getElementById("btn-exit")!.addEventListener("click", async function () {
+        doc.getElementById("btn-exit")!.addEventListener("click", function () {
             testingToolsDiv!.remove();
         });
 
@@ -255,10 +302,10 @@ function createTestingTool() {
             }
             callback(value);
         };
-        const corpData = globalThis.Player.corporation;
+        const corporation = globalThis.Player.corporation;
         const CorpUpgrades = CorpUpgradesData;
-        const setUpgradeLevel = function (upgradeName: string, level: number) {
-            const corpUpgrades: [string, any][] = Object.entries(corpData.upgrades);
+        const setUpgradeLevel = function (upgradeName: UpgradeName, level: number) {
+            const corpUpgrades = getRecordEntries(corporation.upgrades);
             for (const [corpUpgradeName, corpUpgradeInfo] of corpUpgrades) {
                 if (corpUpgradeName === upgradeName) {
                     const upgradeData = CorpUpgrades[corpUpgradeName];
@@ -267,10 +314,10 @@ function createTestingTool() {
                 }
 
                 if (corpUpgradeName === UpgradeName.SMART_STORAGE) {
-                    for (const division of corpData.divisions.values()) {
-                        const warehouses: any[] = getRecordValues(division.warehouses);
+                    for (const division of corporation.divisions.values()) {
+                        const warehouses = getRecordValues(division.warehouses);
                         for (const warehouse of warehouses) {
-                            warehouse.updateSize(corpData, division);
+                            warehouse.updateSize(corporation, division);
                         }
                     }
                 }
@@ -279,21 +326,22 @@ function createTestingTool() {
         const getDivisionName = function (): string {
             return doc.querySelector<HTMLSelectElement>("#testing-tools-divisions")!.value;
         };
-        const getDivision = function (divisionName: string) {
-            for (const division of corpData.divisions.values()) {
+        const getDivision = function (divisionName: string): Division {
+            for (const division of corporation.divisions.values()) {
                 if (division.name === divisionName) {
                     return division;
                 }
             }
+            throw new Error(`Invalid division: ${divisionName}`);
         };
-        const setBoostMaterialsInWarehouse = function (division: any, targetBoostMaterials: number[]) {
+        const setBoostMaterialsInWarehouse = function (division: Division, targetBoostMaterials: number[]) {
             if (targetBoostMaterials.length !== 4) {
                 alert("Invalid input");
                 return;
             }
-            const warehouses: any[] = Object.values(division.warehouses);
+            const warehouses = Object.values(division.warehouses);
             for (const warehouse of warehouses) {
-                const materials: any[] = Object.values(warehouse.materials);
+                const materials = Object.values(warehouse.materials);
                 for (const material of materials) {
                     switch (material.name) {
                         case MaterialName.AI_CORES:
@@ -312,11 +360,11 @@ function createTestingTool() {
                 }
             }
         };
-        const clearInputMaterialsInWarehouse = function (division: any) {
+        const clearInputMaterialsInWarehouse = function (division: Division) {
             const requiredMaterials = Object.keys(division.requiredMaterials);
-            const warehouses: any[] = Object.values(division.warehouses);
+            const warehouses = Object.values(division.warehouses);
             for (const warehouse of warehouses) {
-                const materials: any[] = Object.values(warehouse.materials);
+                const materials = Object.values(warehouse.materials);
                 for (const material of materials) {
                     if (requiredMaterials.includes(material.name)) {
                         material.stored = 0;
@@ -324,35 +372,37 @@ function createTestingTool() {
                 }
             }
         };
-        doc.getElementById("btn-funds")!.addEventListener("click", async function () {
+        doc.getElementById("btn-funds")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                corpData.funds = inputValue;
+                corporation.funds = inputValue;
             });
         });
-        doc.getElementById("btn-smart-factories-level")!.addEventListener("click", async function () {
+        doc.getElementById("btn-smart-factories-level")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
                 setUpgradeLevel(UpgradeName.SMART_FACTORIES, inputValue);
             });
         });
-        doc.getElementById("btn-smart-storage-level")!.addEventListener("click", async function () {
+        doc.getElementById("btn-smart-storage-level")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
                 setUpgradeLevel(UpgradeName.SMART_STORAGE, inputValue);
             });
         });
-        doc.getElementById("btn-import-save-data")!.addEventListener("click", async function () {
-            const saveString = await getSaveData(savaDataSelectElement.value);
-            if (!saveString) {
-                return;
-            }
-            await updateSaveData("save", saveString);
-            globalThis.location.reload();
-            console.log(await getAllSaveDataKeys());
+        doc.getElementById("btn-import-save-data")!.addEventListener("click", function () {
+            getSaveData(savaDataSelectElement.value).then(saveString => {
+                if (!saveString) {
+                    return;
+                }
+                updateSaveData("save", saveString).then(() => {
+                    globalThis.location.reload();
+                });
+            });
         });
-        doc.getElementById("btn-export-save-data")!.addEventListener("click", async function () {
-            await insertSaveData(globalThis.saveObject.getSaveString());
-            await reloadSaveDataSelectElement();
+        doc.getElementById("btn-export-save-data")!.addEventListener("click", function () {
+            insertSaveData(globalThis.saveObject.getSaveString()).then(() => {
+                reloadSaveDataSelectElement().then();
+            });
         });
-        doc.getElementById("btn-delete-save-data")!.addEventListener("click", async function () {
+        doc.getElementById("btn-delete-save-data")!.addEventListener("click", function () {
             const key = savaDataSelectElement.value;
             if (!key) {
                 return;
@@ -361,15 +411,16 @@ function createTestingTool() {
                 alert(`You cannot delete the built-in "save"`);
                 return;
             }
-            await deleteSaveData(savaDataSelectElement.value);
-            await reloadSaveDataSelectElement();
+            deleteSaveData(savaDataSelectElement.value).then(() => {
+                reloadSaveDataSelectElement().then();
+            });
         });
-        doc.getElementById("btn-rp")!.addEventListener("click", async function () {
+        doc.getElementById("btn-rp")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
                 getDivision(getDivisionName()).researchPoints = inputValue;
             });
         });
-        doc.getElementById("btn-office")!.addEventListener("click", async function () {
+        doc.getElementById("btn-office")!.addEventListener("click", function () {
             useInputValueAsString((inputValue: string) => {
                 const employeeJobs: number[] = inputValue.trim().split(",")
                     .map(value => parseNumber(value))
@@ -379,7 +430,7 @@ function createTestingTool() {
                     return;
                 }
                 const size = employeeJobs.reduce((accumulator, current) => accumulator += current, 0);
-                const offices: any[] = Object.values(getDivision(getDivisionName()).offices);
+                const offices = Object.values(getDivision(getDivisionName()).offices);
                 for (const office of offices) {
                     office.size = size;
                     office.numEmployees = size;
@@ -393,17 +444,17 @@ function createTestingTool() {
                 }
             });
         });
-        doc.getElementById("btn-warehouse-level")!.addEventListener("click", async function () {
+        doc.getElementById("btn-warehouse-level")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
                 const division = getDivision(getDivisionName());
-                const warehouses: any[] = Object.values(division.warehouses);
+                const warehouses = Object.values(division.warehouses);
                 for (const warehouse of warehouses) {
                     warehouse.level = inputValue;
-                    warehouse.updateSize(corpData, division);
+                    warehouse.updateSize(corporation, division);
                 }
             });
         });
-        doc.getElementById("btn-boost-materials")!.addEventListener("click", async function () {
+        doc.getElementById("btn-boost-materials")!.addEventListener("click", function () {
             useInputValueAsString((inputValue: string) => {
                 const division = getDivision(getDivisionName());
                 const targetBoostMaterials: number[] = inputValue.trim().split(",")
@@ -412,19 +463,19 @@ function createTestingTool() {
                 setBoostMaterialsInWarehouse(division, targetBoostMaterials);
             });
         });
-        doc.getElementById("btn-clear-boost-materials")!.addEventListener("click", async function () {
+        doc.getElementById("btn-clear-boost-materials")!.addEventListener("click", function () {
             const division = getDivision(getDivisionName());
             setBoostMaterialsInWarehouse(division, [0, 0, 0, 0]);
         });
-        doc.getElementById("btn-clear-input-materials")!.addEventListener("click", async function () {
+        doc.getElementById("btn-clear-input-materials")!.addEventListener("click", function () {
             const division = getDivision(getDivisionName());
             clearInputMaterialsInWarehouse(division);
         });
-        doc.getElementById("btn-clear-storage")!.addEventListener("click", async function () {
+        doc.getElementById("btn-clear-storage")!.addEventListener("click", function () {
             const division = getDivision(getDivisionName());
-            const warehouses: any[] = Object.values(division.warehouses);
+            const warehouses = Object.values(division.warehouses);
             for (const warehouse of warehouses) {
-                const materials: any[] = Object.values(warehouse.materials);
+                const materials = Object.values(warehouse.materials);
                 for (const material of materials) {
                     material.stored = 0;
                 }
@@ -585,12 +636,8 @@ export async function main(ns: NS): Promise<void> {
                     runCorpRound = false;
                 }
             }
-        } catch (ex: any) {
-            if (ex.message !== undefined) {
-                ns.print(`HUD error: ${ex.message}`);
-            } else {
-                ns.print(`HUD error: ${JSON.stringify(ex)}`);
-            }
+        } catch (ex: unknown) {
+            ns.print(`HUD error: ${JSON.stringify(ex)}`);
         }
         await ns.sleep(1000);
     }

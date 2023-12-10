@@ -74,6 +74,7 @@ export interface OfficeBenchmarkData {
     productDevelopmentProgress: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getComparator(benchmarkType: BenchmarkType, sortType?: string): (a: any, b: any) => number {
     switch (benchmarkType) {
         case BenchmarkType.STORAGE_FACTORY:
@@ -122,7 +123,7 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
                 return a.profit - b.profit;
             };
         default:
-            throw new Error(`Invalid benchmark type: ${benchmarkType}`);
+            throw new Error(`Invalid benchmark type`);
     }
 }
 
@@ -219,7 +220,7 @@ export class CorporationBenchmark {
             }
         }
         console.timeEnd("StorageAndFactory benchmark");
-        let data: StorageFactoryBenchmarkData[] = priorityQueue.toArray();
+        const data: StorageFactoryBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
             console.log(
                 `{storage:${data.smartStorageLevel}, warehouse:${data.warehouseLevel}, factory:${data.smartFactoriesLevel}, ` +
@@ -261,8 +262,8 @@ export class CorporationBenchmark {
                 if (totalCost > maxCost) {
                     break;
                 }
-                let previousAwareness = awarenessMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
-                let previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
+                const previousAwareness = awarenessMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
+                const previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
                 const advertisingMultiplier = (1 + CorpUpgradesData[UpgradeName.WILSON_ANALYTICS].benefit * wilsonLevel) * researchAdvertisingMultiplier;
                 let awareness = (previousAwareness + 3 * advertisingMultiplier) * (1.005 * advertisingMultiplier);
                 // Hardcode value of getRandomInt(1, 3). We don't want RNG here.
@@ -292,7 +293,7 @@ export class CorporationBenchmark {
             }
         }
         console.timeEnd("WilsonAndAdvert benchmark");
-        let data: WilsonAdvertBenchmarkData[] = priorityQueue.toArray();
+        const data: WilsonAdvertBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
             console.log(
                 `{wilson:${data.wilsonLevel}, advert:${data.advertLevel}, ` +
@@ -470,8 +471,7 @@ export class CorporationBenchmark {
                     const advertisingFactor = getAdvertisingFactors(
                         division.awareness,
                         division.popularity,
-                        industryData.advertisingFactor!)
-                        [0];
+                        industryData.advertisingFactor!)[0];
                     const maxSalesVolume =
                         itemMultiplier *
                         businessFactor *

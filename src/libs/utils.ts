@@ -10,7 +10,7 @@ export function assertIsString(value: unknown, errorMessage = "Not a string"): a
     }
 }
 
-export function removeItemFromArray(array: any[], item: any) {
+export function removeItemFromArray<T>(array: T[], item: T) {
     array.forEach((value, index) => {
         if (value === item) {
             array.splice(index, 1);
@@ -25,7 +25,7 @@ export function removeItemFromArray(array: any[], item: any) {
  * - empty string ("")
  * @param input
  */
-export function parseNumber(input: any) {
+export function parseNumber(input: number | string | null | undefined) {
     // Number(undefined) is NaN, so we don't have to handle that case
     if (input === null || input === "") {
         return NaN;

@@ -137,7 +137,7 @@ export async function buyTeaAndThrowParty(ns: NS, divisionName: string) {
     while (true) {
         let finish = true;
         for (const city of cities) {
-            let office = ns.corporation.getOffice(divisionName, city);
+            const office = ns.corporation.getOffice(divisionName, city);
             if (office.avgEnergy < 98) {
                 ns.corporation.buyTea(divisionName, city);
                 finish = false;
@@ -159,7 +159,7 @@ export async function buyTeaAndThrowParty(ns: NS, divisionName: string) {
  */
 export function buyTeaAndThrowPartyForAllDivisions(ns: NS) {
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
-        let office = ns.corporation.getOffice(divisionName, city);
+        const office = ns.corporation.getOffice(divisionName, city);
         if (office.avgEnergy < 98) {
             ns.corporation.buyTea(divisionName, city);
         }
@@ -190,7 +190,7 @@ export async function assignJobs(ns: NS, divisionName: string, cities: CityName[
     await ns.corporation.nextUpdate();
     await waitUntilState(ns, CorpState.START);
     for (const city of cities) {
-        let office = ns.corporation.getOffice(divisionName, city);
+        const office = ns.corporation.getOffice(divisionName, city);
         // Check for Unassigned employees
         const unassignedEmployees = office.employeeJobs.Unassigned;
         if (unassignedEmployees > 0) {
@@ -205,7 +205,7 @@ export async function upgradeOffices(ns: NS, divisionName: string, cities: CityN
     amount: number;
 }[]) {
     for (const city of cities) {
-        let office = ns.corporation.getOffice(divisionName, city);
+        const office = ns.corporation.getOffice(divisionName, city);
         if (newSize < office.size) {
             ns.print(`Office's new size is smaller than current size. City: ${city}`);
             continue;
@@ -215,6 +215,7 @@ export async function upgradeOffices(ns: NS, divisionName: string, cities: CityN
             ns.corporation.upgradeOfficeSize(divisionName, city, newSize - office.size);
         }
         // Hire employees
+        // eslint-disable-next-line no-empty
         while (ns.corporation.hireEmployee(divisionName, city)) {
         }
     }
@@ -312,7 +313,7 @@ export async function initDivision(ns: NS, divisionName: string, officeSize: num
     if (!ns.corporation.getCorporation().divisions.includes(divisionName)) {
         ns.corporation.expandIndustry(<CorpIndustryName>divisionName, divisionName);
     }
-    let division = ns.corporation.getDivision(divisionName);
+    const division = ns.corporation.getDivision(divisionName);
     ns.print(`Initializing division: ${divisionName}`);
 
     // Expand to all cities
@@ -347,13 +348,13 @@ function calculateOptimalBoostMaterialQuantities(
     matSizes: number[],
     spaceConstraint: number,
     round: boolean): number[] {
-    let coefficientsSum = matCoefficients.reduce((a, b) => a + b, 0);
-    let sizesSum = matSizes.reduce((a, b) => a + b, 0);
-    let result = [];
+    const sumOfCoefficients = matCoefficients.reduce((a, b) => a + b, 0);
+    const sumOfSizes = matSizes.reduce((a, b) => a + b, 0);
+    const result = [];
     for (let i = 0; i < matSizes.length; ++i) {
         let matCount =
-            (spaceConstraint - 500 * ((matSizes[i] / matCoefficients[i]) * (coefficientsSum - matCoefficients[i]) - (sizesSum - matSizes[i])))
-            / (coefficientsSum / matCoefficients[i])
+            (spaceConstraint - 500 * ((matSizes[i] / matCoefficients[i]) * (sumOfCoefficients - matCoefficients[i]) - (sumOfSizes - matSizes[i])))
+            / (sumOfCoefficients / matCoefficients[i])
             / matSizes[i];
         if (matCoefficients[i] <= 0 || matCount < 0) {
             return calculateOptimalBoostMaterialQuantities(
@@ -534,7 +535,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         }
         // Find required quantity of input materials to produce material
         if (industrialData.makesMaterials) {
-            for (const [_, inputMaterialData] of Object.entries(inputMaterials)) {
+            for (const [, inputMaterialData] of Object.entries(inputMaterials)) {
                 const requiredQuantity = calculateRequiredQuantityOfInputMaterial(
                     ns,
                     division,
@@ -551,7 +552,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         if (industrialData.makesProducts) {
             for (const productName of division.products) {
                 const product = ns.corporation.getProduct(divisionName, city, productName);
-                for (const [_, inputMaterialData] of Object.entries(inputMaterials)) {
+                for (const [, inputMaterialData] of Object.entries(inputMaterials)) {
                     const requiredQuantity = calculateRequiredQuantityOfInputMaterial(
                         ns,
                         division,
@@ -769,7 +770,7 @@ export async function getProductMarkup(
     return 100 / (advertisingInvestmentMultiplier * Math.pow(product.stats.quality + 0.001, 0.65) * businessManagementRatio);
 }
 
-export function isProduct(item: any): item is Product {
+export function isProduct(item: Material | Product): item is Product {
     return "rating" in item;
 }
 
@@ -842,11 +843,7 @@ export async function findOptimalSellingPrice(
     }
 
     const businessFactor = getBusinessFactor(office.employeeProductionByJob[CorpEmployeePosition.BUSINESS]);
-    const advertisingFactor = getAdvertisingFactors(
-        division.awareness,
-        division.popularity,
-        industryData.advertisingFactor!)
-        [0];
+    const advertisingFactor = getAdvertisingFactors(division.awareness, division.popularity, industryData.advertisingFactor!)[0];
     const marketFactor = getMarketFactor(item.demand!, item.competition!);
     const salesMultipliers =
         itemMultiplier *

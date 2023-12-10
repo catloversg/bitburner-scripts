@@ -1,6 +1,7 @@
 /**
- * Do NOT import any script
+ * Do NOT import any script except @ns
  */
+import {AutocompleteData, NS} from "@ns";
 
 let originalRevokeObjectURLFunction: ((url: string) => void) | null = null;
 
@@ -23,11 +24,12 @@ export function enableURLRevokeObjectURL() {
     console.log("URL.revokeObjectURL has been enabled");
 }
 
-export function autocomplete(data: any, args: string[]) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
     return ["--runHUDAndDaemon"];
 }
 
-export async function main(ns: any): Promise<void> {
+export function main(ns: NS): void {
     disableURLRevokeObjectURL();
 
     const config = ns.flags([
