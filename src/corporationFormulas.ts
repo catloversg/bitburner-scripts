@@ -110,9 +110,11 @@ export interface CeresSolverResult {
 }
 
 const warehouseUpgradeBasePrice = 1e9;
+const officeUpgradeBasePrice = 4e9;
+const advertUpgradeBasePrice = 1e9;
 
 const numberSuffixList = ["", "k", "m", "b", "t", "q", "Q", "s", "S", "o", "n"];
-// exponents associated with each suffix
+// Exponents associated with each suffix
 const numberExpList = numberSuffixList.map((_, i) => parseFloat(`1e${i * 3}`));
 
 const numberFormat = new Intl.NumberFormat(
@@ -164,7 +166,6 @@ export function formatNumber(value: number): string {
     let suffixIndex = Math.floor(Math.log10(nAbs) / 3);
 
     value /= numberExpList[suffixIndex];
-    // Todo: Find a better way to detect if number is rounding to 1000${suffix}, or find a simple way to truncate to x digits instead of rounding
     // Detect if number rounds to 1000.000 (based on number of digits given)
     if (Math.abs(value).toFixed(fractionalDigits).length === fractionalDigits + 5 && numberSuffixList[suffixIndex + 1]) {
         suffixIndex += 1;
@@ -264,12 +265,20 @@ export function getWarehouseSize(smartStorageLevel: number, warehouseLevel: numb
         getResearchStorageMultiplier(divisionResearches);
 }
 
+export function getOfficeUpgradeCost(fromSize: number, toSize: number): number {
+    return calculateGenericUpgradeCost(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), Math.ceil(toSize / 3));
+}
+
+export function getMaxAffordableOfficeSize(fromSize: number, maxCost: number): number {
+    return 3 * calculateGenericMaxAffordableUpgradeLevel(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), maxCost);
+}
+
 export function getAdVertCost(fromLevel: number, toLevel: number): number {
-    return calculateGenericUpgradeCost(1e9, 1.06, fromLevel, toLevel);
+    return calculateGenericUpgradeCost(advertUpgradeBasePrice, 1.06, fromLevel, toLevel);
 }
 
 export function getMaxAffordableAdVertLevel(fromLevel: number, maxCost: number): number {
-    return calculateGenericMaxAffordableUpgradeLevel(1e9, 1.06, fromLevel, maxCost);
+    return calculateGenericMaxAffordableUpgradeLevel(advertUpgradeBasePrice, 1.06, fromLevel, maxCost);
 }
 
 export function getResearchMultiplier(divisionResearches: DivisionResearches, researchDataKey: keyof typeof CorpResearchesData[string]): number {
