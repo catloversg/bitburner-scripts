@@ -478,19 +478,27 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         // Detect warehouse congestion
         let isWarehouseCongested = false;
         const warehouseCongestionDataKey = `${divisionName}|${city}`;
-        for (const [materialName] of requiredMaterials) {
-            const material = ns.corporation.getMaterial(divisionName, city, materialName);
-            if (!warehouseCongestionData.has(warehouseCongestionDataKey)) {
-                warehouseCongestionData.set(warehouseCongestionDataKey, 0);
+        const items: (Material | Product)[] = [];
+        if (industrialData.producedMaterials) {
+            for (const materialName of industrialData.producedMaterials) {
+                items.push(ns.corporation.getMaterial(divisionName, city, materialName));
             }
-
-            if (material.productionAmount !== 0 || material.stored === 0) {
+        }
+        if (industrialData.makesProducts) {
+            for (const productName of division.products) {
+                items.push(ns.corporation.getProduct(divisionName, city, productName));
+            }
+        }
+        for (const item of items) {
+            if (item.productionAmount !== 0) {
                 warehouseCongestionData.set(warehouseCongestionDataKey, 0);
                 continue;
             }
-            // material.productionAmount === 0 && material.stored !== 0 means that we skip buying this required material
-            // last cycle while we still have stored required material
-            const numberOfCongestionTimes = warehouseCongestionData.get(warehouseCongestionDataKey)! + 1;
+            // item.productionAmount === 0 means that division does not produce material/product last cycle.
+            let numberOfCongestionTimes = warehouseCongestionData.get(warehouseCongestionDataKey)! + 1;
+            if (Number.isNaN(numberOfCongestionTimes)) {
+                numberOfCongestionTimes = 0;
+            }
             warehouseCongestionData.set(warehouseCongestionDataKey, numberOfCongestionTimes);
             break;
         }
@@ -511,6 +519,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
                 // Discard stored input material
                 ns.corporation.sellMaterial(divisionName, city, materialName, "MAX", "0");
             }
+            warehouseCongestionData.set(warehouseCongestionDataKey, 0);
             return;
         } else {
             for (const [materialName] of requiredMaterials) {
