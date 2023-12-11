@@ -30,6 +30,7 @@ module.exports = {
         "src/libs/Record.ts",
         "src/libs/RNG.ts",
         "src/libs/walk.js",
+        "src/test*.ts",
     ],
     overrides: [
         {
@@ -40,14 +41,6 @@ module.exports = {
                 "@typescript-eslint/no-explicit-any": "warn",
                 "@typescript-eslint/no-unused-vars": "warn",
                 "no-constant-condition": "off",
-            }
-        },
-        {
-            files: [
-                "src/libs/utils.ts"
-            ],
-            rules: {
-                "@typescript-eslint/no-unused-vars": "off",
             }
         },
         {
