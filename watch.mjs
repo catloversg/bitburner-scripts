@@ -29,7 +29,7 @@ function buildScript(path) {
     esbuild
         .build({
             entryPoints: [path],
-            outdir: config.buildFolder,
+            outdir: resolve(config.buildFolder, dirname(path)),
             platform: "browser",
             format: "esm",
             sourcemap: "inline",
