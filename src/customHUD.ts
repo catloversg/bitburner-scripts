@@ -2,8 +2,8 @@ import {NS} from "@ns";
 import {NetscriptExtension} from "/libs/NetscriptExtension";
 import {DAEMON_SCRIPT_NAME} from "/libs/constants";
 import {parseNumber} from "/libs/utils";
-import {CityName, CorpEmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
-import {getRecordEntries, getRecordValues, PartialRecord} from "/libs/Record";
+import {CityName, EmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
+import {getRecordEntries, PartialRecord} from "/libs/Record";
 import {CorpUpgradesData} from "/data/CorpUpgradesData";
 
 let nsx: NetscriptExtension;
@@ -315,7 +315,7 @@ function createTestingTool() {
 
                 if (corpUpgradeName === UpgradeName.SMART_STORAGE) {
                     for (const division of corporation.divisions.values()) {
-                        const warehouses = getRecordValues(division.warehouses);
+                        const warehouses = Object.values(division.warehouses);
                         for (const warehouse of warehouses) {
                             warehouse.updateSize(corporation, division);
                         }
@@ -434,13 +434,13 @@ function createTestingTool() {
                 for (const office of offices) {
                     office.size = size;
                     office.numEmployees = size;
-                    office.employeeNextJobs[CorpEmployeePosition.OPERATIONS] = employeeJobs[0];
-                    office.employeeNextJobs[CorpEmployeePosition.ENGINEER] = employeeJobs[1];
-                    office.employeeNextJobs[CorpEmployeePosition.BUSINESS] = employeeJobs[2];
-                    office.employeeNextJobs[CorpEmployeePosition.MANAGEMENT] = employeeJobs[3];
-                    office.employeeNextJobs[CorpEmployeePosition.RESEARCH_DEVELOPMENT] = employeeJobs[4];
-                    office.employeeNextJobs[CorpEmployeePosition.INTERN] = 0;
-                    office.employeeNextJobs[CorpEmployeePosition.UNASSIGNED] = 0;
+                    office.employeeNextJobs[EmployeePosition.OPERATIONS] = employeeJobs[0];
+                    office.employeeNextJobs[EmployeePosition.ENGINEER] = employeeJobs[1];
+                    office.employeeNextJobs[EmployeePosition.BUSINESS] = employeeJobs[2];
+                    office.employeeNextJobs[EmployeePosition.MANAGEMENT] = employeeJobs[3];
+                    office.employeeNextJobs[EmployeePosition.RESEARCH_DEVELOPMENT] = employeeJobs[4];
+                    office.employeeNextJobs[EmployeePosition.INTERN] = 0;
+                    office.employeeNextJobs[EmployeePosition.UNASSIGNED] = 0;
                 }
             });
         });
@@ -587,12 +587,12 @@ export async function main(ns: NS): Promise<void> {
                     reload = false;
                 }
                 if (runCorpRound) {
-                    if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
-                        ns.toast("Failed to run corporation.js --round2");
-                    }
-                    // if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
-                    //     ns.toast("Failed to run corporation.js --round3");
+                    // if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
+                    //     ns.toast("Failed to run corporation.js --round2");
                     // }
+                    if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
+                        ns.toast("Failed to run corporation.js --round3");
+                    }
                     // if (!hasDivision(ns, DivisionName.CHEMICAL)) {
                     //     if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
                     //         ns.toast("Failed to run corporation.js --round2");

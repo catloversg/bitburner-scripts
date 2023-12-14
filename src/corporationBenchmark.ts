@@ -1,12 +1,9 @@
 import {CorpIndustryData, Division, Material, Product} from "@ns";
 import * as comlink from "/libs/comlink";
-import {getProductMarkup, isProduct, optimizeBoostMaterialQuantities} from "/corporationUtils";
+import {isProduct, optimizeBoostMaterialQuantities} from "/corporationUtils";
 import {
     calculateDivisionRawProduction,
     calculateEmployeeProductionByJobs,
-    calculateEmployeeStats,
-    CityName,
-    CorpEmployeePosition,
     CorporationUpgradeLevels,
     DivisionResearches,
     formatNumber,
@@ -70,8 +67,10 @@ export interface OfficeBenchmarkData {
     rawProduction: number;
     maxSalesVolume: number;
     optimalPrice: number;
-    profit: number;
+    productRating: number;
+    productMarkup: number;
     productDevelopmentProgress: number;
+    profit: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,6 +110,9 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
                 if (sortType === "rawProduction") {
                     return a.rawProduction - b.rawProduction;
                 }
+                if (sortType === "optimalPrice") {
+                    return a.optimalPrice - b.optimalPrice;
+                }
                 if (sortType === "profit") {
                     return a.profit - b.profit;
                 }
@@ -127,10 +129,10 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
     }
 }
 
-export class CorporationBenchmark {
-    // Key: divisionName|city|productName
-    private productMarkupMap = new Map<string, number>();
+const awarenessMap = new Map<string, number>();
+const popularityMap = new Map<string, number>();
 
+export class CorporationBenchmark {
     public getScriptUrl(): string {
         return import.meta.url;
     }
@@ -249,8 +251,6 @@ export class CorporationBenchmark {
         console.log(`maxWilsonLevel: ${maxWilsonLevel}`);
         console.log(`maxAdvertLevel: ${maxAdvertLevel}`);
         const researchAdvertisingMultiplier = getResearchAdvertisingMultiplier(divisionResearches);
-        const awarenessMap = new Map<string, number>();
-        const popularityMap = new Map<string, number>();
         const comparator = getComparator(BenchmarkType.WILSON_ADVERT);
         const priorityQueue = new PriorityQueue(comparator);
         console.time("WilsonAndAdvert benchmark");
@@ -266,7 +266,7 @@ export class CorporationBenchmark {
                 const previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
                 const advertisingMultiplier = (1 + CorpUpgradesData[UpgradeName.WILSON_ANALYTICS].benefit * wilsonLevel) * researchAdvertisingMultiplier;
                 let awareness = (previousAwareness + 3 * advertisingMultiplier) * (1.005 * advertisingMultiplier);
-                // Hardcode value of getRandomInt(1, 3). We don't want RNG here.
+                // Hard-coded value of getRandomInt(1, 3). We don't want RNG here.
                 // let popularity = (previousPopularity + advertisingMultiplier) * ((1 + getRandomInt(1, 3) / 200) * advertisingMultiplier);
                 let popularity = (previousPopularity + advertisingMultiplier) * ((1 + 2 / 200) * advertisingMultiplier);
                 awareness = Math.min(awareness, Number.MAX_VALUE);
@@ -308,10 +308,272 @@ export class CorporationBenchmark {
         return data;
     }
 
+    public async calculateOfficeBenchmarkData(
+        division: Division,
+        industryData: CorpIndustryData,
+        item: Material | Product,
+        customData: {
+            office: {
+                avgMorale: number;
+                avgEnergy: number;
+                avgIntelligence: number,
+                avgCharisma: number,
+                avgCreativity: number,
+                avgEfficiency: number,
+                totalExperience: number;
+            },
+            corporationUpgradeLevels: CorporationUpgradeLevels,
+            divisionResearches: DivisionResearches,
+            step?: number;
+        },
+        operations: number,
+        engineer: number,
+        management: number,
+        business: number,
+        salesBotUpgradeBenefit: number,
+        researchSalesMultiplier: number
+    ): Promise<OfficeBenchmarkData | null> {
+        const itemIsProduct = isProduct(item);
+        const employeesProduction = calculateEmployeeProductionByJobs(
+            {
+                avgIntelligence: customData.office.avgIntelligence,
+                avgCharisma: customData.office.avgCharisma,
+                avgCreativity: customData.office.avgCreativity,
+                avgEfficiency: customData.office.avgEfficiency,
+                avgMorale: customData.office.avgMorale,
+                avgEnergy: customData.office.avgEnergy,
+                totalExperience: customData.office.totalExperience,
+                employeeJobs: {
+                    operations: operations,
+                    engineer: engineer,
+                    business: business,
+                    management: management,
+                    researchAndDevelopment: 0,
+                    intern: 0,
+                    unassigned: 0
+                }
+            },
+            customData.corporationUpgradeLevels,
+            customData.divisionResearches
+        );
+        const rawProduction = calculateDivisionRawProduction(
+            itemIsProduct,
+            {
+                operationsProduction: employeesProduction.operationsProduction,
+                engineerProduction: employeesProduction.engineerProduction,
+                managementProduction: employeesProduction.managementProduction,
+            },
+            division.productionMult,
+            customData.corporationUpgradeLevels,
+            customData.divisionResearches
+        );
+
+        let productRating = 0;
+        let productMarkup = 0;
+        let demand: number;
+        let competition: number;
+        let productDevelopmentProgress = 0;
+
+        let itemMultiplier: number;
+        let markupLimit: number;
+        let marketPrice: number;
+
+        if (itemIsProduct) {
+            // Calculate progress
+            const totalProductionForProductDev = employeesProduction.operationsProduction
+                + employeesProduction.engineerProduction
+                + employeesProduction.managementProduction;
+            const managementFactor = 1 + employeesProduction.managementProduction / (1.2 * totalProductionForProductDev);
+            productDevelopmentProgress = 0.01 * (
+                    Math.pow(employeesProduction.engineerProduction, 0.34)
+                    + Math.pow(employeesProduction.operationsProduction, 0.2)
+                )
+                * managementFactor;
+
+            // Calculate product.stats
+            const productStats: Record<string, number> = {
+                quality: 0,
+                performance: 0,
+                durability: 0,
+                reliability: 0,
+                aesthetics: 0,
+                features: 0,
+            };
+            // If we assume that office setup does not change, we can use employeesProduction instead of creationJobFactors
+            const totalProduction =
+                employeesProduction.engineerProduction
+                + employeesProduction.managementProduction
+                + employeesProduction.researchAndDevelopmentProduction
+                + employeesProduction.operationsProduction
+                + employeesProduction.businessProduction;
+
+            const engineerRatio = employeesProduction.engineerProduction / totalProduction;
+            const managementRatio = employeesProduction.managementProduction / totalProduction;
+            const researchAndDevelopmentRatio = employeesProduction.researchAndDevelopmentProduction / totalProduction;
+            const operationsRatio = employeesProduction.operationsProduction / totalProduction;
+            const businessRatio = employeesProduction.businessProduction / totalProduction;
+            // Reuse designInvestment of latest product
+            const designInvestmentMultiplier = 1 + (Math.pow(item.designInvestment, 0.1)) / 100;
+            const scienceMultiplier = 1 + (Math.pow(division.researchPoints, industryData.scienceFactor!)) / 800;
+            const balanceMultiplier =
+                1.2 * engineerRatio
+                + 0.9 * managementRatio
+                + 1.3 * researchAndDevelopmentRatio
+                + 1.5 * operationsRatio
+                + businessRatio;
+            const totalMultiplier = balanceMultiplier * designInvestmentMultiplier * scienceMultiplier;
+            productStats.quality = totalMultiplier * (
+                0.1 * employeesProduction.engineerProduction
+                + 0.05 * employeesProduction.managementProduction
+                + 0.05 * employeesProduction.researchAndDevelopmentProduction
+                + 0.02 * employeesProduction.operationsProduction
+                + 0.02 * employeesProduction.businessProduction
+            );
+            productStats.performance = totalMultiplier * (
+                0.15 * employeesProduction.engineerProduction
+                + 0.02 * employeesProduction.managementProduction
+                + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                + 0.02 * employeesProduction.operationsProduction
+                + 0.02 * employeesProduction.businessProduction
+            );
+            productStats.durability = totalMultiplier * (
+                0.05 * employeesProduction.engineerProduction
+                + 0.02 * employeesProduction.managementProduction
+                + 0.08 * employeesProduction.researchAndDevelopmentProduction
+                + 0.05 * employeesProduction.operationsProduction
+                + 0.05 * employeesProduction.businessProduction
+            );
+            productStats.reliability = totalMultiplier * (
+                0.02 * employeesProduction.engineerProduction
+                + 0.08 * employeesProduction.managementProduction
+                + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                + 0.05 * employeesProduction.operationsProduction
+                + 0.08 * employeesProduction.businessProduction
+            );
+            productStats.aesthetics = totalMultiplier * (
+                +0.08 * employeesProduction.managementProduction
+                + 0.05 * employeesProduction.researchAndDevelopmentProduction
+                + 0.02 * employeesProduction.operationsProduction
+                + 0.1 * employeesProduction.businessProduction
+            );
+            productStats.features = totalMultiplier * (
+                0.08 * employeesProduction.engineerProduction
+                + 0.05 * employeesProduction.managementProduction
+                + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                + 0.05 * employeesProduction.operationsProduction
+                + 0.05 * employeesProduction.businessProduction
+            );
+
+            // Calculate product.rating
+            const weights = industryData.product!.ratingWeights;
+            for (const [statName, coefficient] of Object.entries(weights)) {
+                productRating += productStats[statName] * coefficient;
+            }
+
+            // Calculate product.markup
+            // Reuse advertisingInvestment of latest product
+            const advertisingInvestmentMultiplier = 1 + (Math.pow(item.advertisingInvestment, 0.1)) / 100;
+            const businessManagementRatio = Math.max(
+                businessRatio + managementRatio,
+                1 / totalProduction
+            );
+            productMarkup = 100 / (
+                advertisingInvestmentMultiplier * Math.pow(productStats.quality + 0.001, 0.65) * businessManagementRatio
+            );
+
+            // Calculate demand/competition
+            demand = division.awareness === 0
+                ? 20
+                : Math.min(
+                    100,
+                    advertisingInvestmentMultiplier * (100 * (division.popularity / division.awareness))
+                );
+            // Hard-coded value of getRandomInt(0, 70). We don't want RNG here.
+            competition = 35;
+
+            // If we assume that input materials' average quality is high enough, we can use productRating
+            // directly instead of having to calculate effectiveRating.
+            itemMultiplier = 0.5 * Math.pow(productRating, 0.65);
+            markupLimit = Math.max(productRating, 0.001) / productMarkup;
+            // Reuse marketPrice of latest product. productionCost only depends on input materials' market
+            // price and coefficient.
+            marketPrice = item.productionCost;
+        } else {
+            if (!item.demand || !item.competition) {
+                throw new Error(`You need to unlock "Market Research - Demand" and "Market Data - Competition"`);
+            }
+            demand = item.demand;
+            competition = item.competition;
+            itemMultiplier = item.quality + 0.001;
+            markupLimit = item.quality / CorpMaterialsData[item.name].baseMarkup;
+            marketPrice = item.marketPrice;
+        }
+
+        const marketFactor = getMarketFactor(demand, competition);
+        const businessFactor = getBusinessFactor(employeesProduction.businessProduction);
+        const advertisingFactor = getAdvertisingFactors(
+            division.awareness,
+            division.popularity,
+            industryData.advertisingFactor!)[0];
+        const maxSalesVolume =
+            itemMultiplier *
+            businessFactor *
+            advertisingFactor *
+            marketFactor *
+            salesBotUpgradeBenefit *
+            researchSalesMultiplier;
+
+        if (itemIsProduct) {
+            if (maxSalesVolume < rawProduction) {
+                // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
+                // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
+                return null;
+            }
+        } else {
+            // Add margin error in case of output materials
+            if (maxSalesVolume < rawProduction * 0.9) {
+                // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
+                // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
+                return null;
+            }
+        }
+
+        const optimalPrice = markupLimit / Math.sqrt(rawProduction / maxSalesVolume) + marketPrice;
+
+        const profit = (rawProduction * 10) * optimalPrice;
+
+        return {
+            operations: operations,
+            engineer: engineer,
+            business: business,
+            management: management,
+            totalExperience: customData.office.totalExperience,
+            rawProduction: rawProduction,
+            maxSalesVolume: maxSalesVolume,
+            optimalPrice: optimalPrice,
+            productRating: productRating,
+            productMarkup: productMarkup,
+            productDevelopmentProgress: productDevelopmentProgress,
+            profit: profit,
+        };
+    }
+
+    /**
+     *
+     * @param division
+     * @param industryData
+     * @param operationsJob
+     * @param engineerJob
+     * @param managementJob
+     * @param maxTotalEmployees Does not count RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
+     * total employees is 9.
+     * @param item
+     * @param customData
+     * @param sortType
+     */
     public async optimizeOffice(
         division: Division,
         industryData: CorpIndustryData,
-        city: CityName,
         operationsJob: {
             min: number;
             max: number;
@@ -330,83 +592,18 @@ export class CorporationBenchmark {
             office: {
                 avgMorale: number;
                 avgEnergy: number;
+                avgIntelligence: number,
+                avgCharisma: number,
+                avgCreativity: number,
+                avgEfficiency: number,
                 totalExperience: number;
-                numEmployees: number;
-                employeeJobs: Record<CorpEmployeePosition, number>;
-                employeeProductionByJob: Record<CorpEmployeePosition, number>;
             },
             corporationUpgradeLevels: CorporationUpgradeLevels,
             divisionResearches: DivisionResearches,
-            demandCompetition?: {
-                demand: number;
-                competition: number;
-            };
             step?: number;
         },
         sortType: string
     ): Promise<{ step: number; data: OfficeBenchmarkData[]; }> {
-        const itemIsProduct = isProduct(item);
-
-        let demand: number;
-        let competition: number;
-        if (customData.demandCompetition) {
-            demand = customData.demandCompetition.demand;
-            competition = customData.demandCompetition.competition;
-            if (!demand || !competition) {
-                throw new Error("Invalid demand/competition data");
-            }
-        } else {
-            demand = item.demand!;
-            competition = item.competition!;
-            if (!demand || !competition) {
-                throw new Error(`You need to unlock "Market Research - Demand" and "Market Data - Competition"`);
-            }
-        }
-
-        const numberOfNewEmployees = maxTotalEmployees - customData.office.numEmployees;
-        if (numberOfNewEmployees < 0) {
-            throw new Error("Invalid employees' data. maxTotalEmployees is less than current number of employees.");
-        }
-        const totalExperience = customData.office.totalExperience + 75 * numberOfNewEmployees;
-        const avgStats = await calculateEmployeeStats(
-            customData.office,
-            customData.corporationUpgradeLevels,
-            customData.divisionResearches
-        );
-        for (let i = 0; i < numberOfNewEmployees; i++) {
-            avgStats.avgIntelligence = (avgStats.avgIntelligence * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
-            avgStats.avgCharisma = (avgStats.avgCharisma * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
-            avgStats.avgCreativity = (avgStats.avgCreativity * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
-            avgStats.avgEfficiency = (avgStats.avgEfficiency * customData.office.numEmployees + 75) / (customData.office.numEmployees + 1);
-        }
-
-        let itemMultiplier: number;
-        if (itemIsProduct) {
-            itemMultiplier = 0.5 * Math.pow(item.effectiveRating, 0.65);
-        } else {
-            itemMultiplier = item.quality + 0.001;
-        }
-        let productMarkup;
-        let markupLimit: number;
-        let marketPrice: number;
-        if (itemIsProduct) {
-            const productKey = `${division.name}|${city}|${item.name}`;
-            productMarkup = this.productMarkupMap.get(productKey);
-            if (!productMarkup) {
-                productMarkup = await getProductMarkup(
-                    division.researchPoints,
-                    industryData.scienceFactor!,
-                    item
-                );
-                this.productMarkupMap.set(productKey, productMarkup);
-            }
-            markupLimit = Math.max(item.effectiveRating, 0.001) / productMarkup;
-            marketPrice = item.productionCost;
-        } else {
-            markupLimit = item.quality / CorpMaterialsData[item.name].baseMarkup;
-            marketPrice = item.marketPrice;
-        }
-        const marketFactor = getMarketFactor(demand, competition);
         const salesBotUpgradeBenefit = getUpgradeBenefit(
             UpgradeName.ABC_SALES_BOTS,
             customData.corporationUpgradeLevels[UpgradeName.ABC_SALES_BOTS]
@@ -433,97 +630,21 @@ export class CorporationBenchmark {
                         continue;
                     }
                     const business = maxTotalEmployees - (operations + engineer + management);
-                    const employeesProduction = calculateEmployeeProductionByJobs(
-                        {
-                            avgIntelligence: avgStats.avgIntelligence,
-                            avgCharisma: avgStats.avgCharisma,
-                            avgCreativity: avgStats.avgCreativity,
-                            avgEfficiency: avgStats.avgEfficiency,
-                            avgMorale: customData.office.avgMorale,
-                            avgEnergy: customData.office.avgEnergy,
-                            totalExperience: totalExperience,
-                            employeeJobs: {
-                                operations: operations,
-                                engineer: engineer,
-                                business: business,
-                                management: management,
-                                researchAndDevelopment: 0,
-                                intern: 0,
-                                unassigned: 0
-                            }
-                        },
-                        customData.corporationUpgradeLevels,
-                        customData.divisionResearches
+                    const dataEntry = await this.calculateOfficeBenchmarkData(
+                        division,
+                        industryData,
+                        item,
+                        customData,
+                        operations,
+                        engineer,
+                        management,
+                        business,
+                        salesBotUpgradeBenefit,
+                        researchSalesMultiplier
                     );
-                    const rawProduction = calculateDivisionRawProduction(
-                        itemIsProduct,
-                        {
-                            operationsProduction: employeesProduction.operationsProduction,
-                            engineerProduction: employeesProduction.engineerProduction,
-                            managementProduction: employeesProduction.managementProduction,
-                        },
-                        division.productionMult,
-                        customData.corporationUpgradeLevels,
-                        customData.divisionResearches
-                    );
-
-                    const businessFactor = getBusinessFactor(employeesProduction.businessProduction);
-                    const advertisingFactor = getAdvertisingFactors(
-                        division.awareness,
-                        division.popularity,
-                        industryData.advertisingFactor!)[0];
-                    const maxSalesVolume =
-                        itemMultiplier *
-                        businessFactor *
-                        advertisingFactor *
-                        marketFactor *
-                        salesBotUpgradeBenefit *
-                        researchSalesMultiplier;
-
-                    if (itemIsProduct || customData.demandCompetition) {
-                        if (maxSalesVolume < rawProduction) {
-                            // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                            // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
-                            break;
-                        }
-                    } else {
-                        // Add margin error in case of output materials and no custom data for demand/competition
-                        if (maxSalesVolume < rawProduction * 0.9) {
-                            // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                            // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
-                            break;
-                        }
+                    if (!dataEntry) {
+                        continue;
                     }
-
-                    const optimalPrice = markupLimit / Math.sqrt(rawProduction / maxSalesVolume) + marketPrice;
-
-                    const profit = (rawProduction * 10) * optimalPrice;
-
-                    let productDevelopmentProgress = 0;
-                    if (itemIsProduct) {
-                        const totalProductionForProductDev = employeesProduction.operationsProduction
-                            + employeesProduction.engineerProduction
-                            + employeesProduction.managementProduction;
-                        const managementFactor = 1 + employeesProduction.managementProduction / (1.2 * totalProductionForProductDev);
-                        productDevelopmentProgress = 0.01 * (
-                                Math.pow(employeesProduction.engineerProduction, 0.34)
-                                + Math.pow(employeesProduction.operationsProduction, 0.2)
-                            )
-                            * managementFactor;
-                    }
-
-                    const dataEntry: OfficeBenchmarkData = {
-                        operations: operations,
-                        engineer: engineer,
-                        business: business,
-                        management: management,
-                        totalExperience: totalExperience,
-                        rawProduction: rawProduction,
-                        maxSalesVolume: maxSalesVolume,
-                        optimalPrice: optimalPrice,
-                        profit: profit,
-                        productDevelopmentProgress: productDevelopmentProgress,
-                    };
                     if (priorityQueue.size() < 20) {
                         priorityQueue.push(dataEntry);
                     } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
@@ -538,7 +659,6 @@ export class CorporationBenchmark {
             data: priorityQueue.toArray()
         };
     }
-
 }
 
 comlink.expose(new CorporationBenchmark());

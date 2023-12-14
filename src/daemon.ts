@@ -10,7 +10,8 @@ import {
     buyOptimalAmountOfInputMaterials,
     buyTeaAndThrowPartyForAllDivisions,
     loopAllDivisionsAndCities,
-    setOptimalSellingPrice
+    setOptimalSellingPrice,
+    validateProductMarkupMap
 } from "/corporationUtils";
 import {UnlockName} from "/corporationFormulas";
 
@@ -63,6 +64,7 @@ export async function main(nsContext: NS): Promise<void> {
         while (true) {
             buyTeaAndThrowPartyForAllDivisions(ns);
 
+            // Smart Supply
             if (!smartSupplyHasBeenEnabledEverywhere) {
                 // Enable Smart Supply everywhere if we have unlocked this feature
                 if (ns.corporation.hasUnlock(UnlockName.SMART_SUPPLY)) {
@@ -76,7 +78,13 @@ export async function main(nsContext: NS): Promise<void> {
                 }
             }
 
+            // Remove nonexistent product in productMarkupMap
+            if (ns.corporation.getCorporation().nextState === "START") {
+                validateProductMarkupMap(ns);
+            }
+            // Market TA2
             await setOptimalSellingPrice(ns);
+
             await ns.corporation.nextUpdate();
         }
     }

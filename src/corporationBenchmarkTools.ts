@@ -1,8 +1,8 @@
-import {Material, NS, Product,} from "@ns";
+import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
 import {BenchmarkType, CorporationBenchmark, getComparator, OfficeBenchmarkData} from "/corporationBenchmark";
-import {CityName, formatNumber} from "/corporationFormulas";
+import {calculateEmployeeStats, CityName, formatNumber} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct} from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
 import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
@@ -56,20 +56,25 @@ async function splitWorkload(
         min: number;
         max: number;
     },
-    workload: Workload) {
+    workload: Workload,
+    enableLogging = true) {
     const numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
     const workers: Worker[] = [];
     const promises: Promise<void>[] = [];
     let current = operationsJob.min;
     const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
-    console.time("Office benchmark execution time");
+    if (enableLogging) {
+        console.time("Office benchmark execution time");
+    }
     for (let i = 0; i < numberOfThreads; ++i) {
         const from = current;
         if (from > operationsJob.max) {
             break;
         }
         const to = Math.min(current + step, operationsJob.max);
-        console.log(`from: ${from}, to: ${to}`);
+        if (enableLogging) {
+            console.log(`from: ${from}, to: ${to}`);
+        }
         const worker = new Worker(workerModuleUrl, {type: "module"});
         workers.push(worker);
         const workerWrapper = comlink.wrap<CorporationBenchmark>(worker);
@@ -99,36 +104,107 @@ async function splitWorkload(
         });
     });
     await Promise.allSettled(promises);
-    console.timeEnd("Office benchmark execution time");
+    if (enableLogging) {
+        console.timeLog("Office benchmark execution time");
+    }
 }
 
+/**
+ *
+ * @param ns
+ * @param division
+ * @param industryData
+ * @param city
+ * @param maxTotalEmployees Does not count RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
+ * total employees is 9.
+ * @param item
+ * @param sortType
+ * @param maxRerun
+ * @param enableLogging
+ */
 export async function optimizeOffice(
     ns: NS,
-    divisionName: string,
+    division: Division,
+    industryData: CorpIndustryData,
     city: CityName,
     maxTotalEmployees: number,
     item: Material | Product,
-    sortType: "rawProduction" | "profit" | "progress" | "profit_progress",
-    maxRerun = 1) {
+    sortType: "rawProduction" | "optimalPrice" | "profit" | "progress" | "profit_progress",
+    maxRerun = 1,
+    enableLogging = true) {
     await validateWorkerModuleUrl(ns);
 
     const data: OfficeBenchmarkData[] = [];
-    const division = ns.corporation.getDivision(divisionName);
-    const industryData = ns.corporation.getIndustryData(division.type);
     const office = ns.corporation.getOffice(division.name, city);
+
+    let avgMorale = office.avgMorale;
+    let avgEnergy = office.avgEnergy;
+    const corporationUpgradeLevels = getCorporationUpgradeLevels(ns);
+    const divisionResearches = getDivisionResearches(ns, division.name);
+
+    const numberOfNewEmployees =
+        maxTotalEmployees
+        + office.employeeJobs["Research & Development"]
+        - office.numEmployees;
+    if (numberOfNewEmployees < 0) {
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxTotalEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
+    }
+    const totalExperience = office.totalExperience + 75 * numberOfNewEmployees;
+    // Calculate avgStats based on current office data
+    let avgStats;
+    try {
+        avgStats = await calculateEmployeeStats(
+            {
+                avgMorale: office.avgMorale,
+                avgEnergy: office.avgEnergy,
+                totalExperience: office.totalExperience,
+                numEmployees: office.numEmployees,
+                employeeJobs: office.employeeJobs,
+                employeeProductionByJob: office.employeeProductionByJob,
+            },
+            corporationUpgradeLevels,
+            divisionResearches
+        );
+    } catch (e) {
+        console.warn(e);
+        avgStats = {
+            avgIntelligence: 75,
+            avgCharisma: 75,
+            avgCreativity: 75,
+            avgEfficiency: 75,
+        };
+    }
+    for (let i = 0; i < numberOfNewEmployees; i++) {
+        // avgMorale = (avgMorale * office.numEmployees + 75) / (office.numEmployees + 1);
+        // avgEnergy = (avgEnergy * office.numEmployees + 75) / (office.numEmployees + 1);
+        // Assume that we always maintain max morale/energy
+        avgMorale = 100;
+        avgEnergy = 100;
+        avgStats.avgIntelligence = (avgStats.avgIntelligence * office.numEmployees + 75) / (office.numEmployees + 1);
+        avgStats.avgCharisma = (avgStats.avgCharisma * office.numEmployees + 75) / (office.numEmployees + 1);
+        avgStats.avgCreativity = (avgStats.avgCreativity * office.numEmployees + 75) / (office.numEmployees + 1);
+        avgStats.avgEfficiency = (avgStats.avgEfficiency * office.numEmployees + 75) / (office.numEmployees + 1);
+    }
+
     const customData = {
         office: {
-            avgMorale: office.avgMorale,
-            avgEnergy: office.avgEnergy,
-            totalExperience: office.totalExperience,
-            numEmployees: office.numEmployees,
-            employeeJobs: office.employeeJobs,
-            employeeProductionByJob: office.employeeProductionByJob
+            avgMorale: avgMorale,
+            avgEnergy: avgEnergy,
+            avgIntelligence: avgStats.avgIntelligence,
+            avgCharisma: avgStats.avgCharisma,
+            avgCreativity: avgStats.avgCreativity,
+            avgEfficiency: avgStats.avgEfficiency,
+            totalExperience: totalExperience,
         },
-        corporationUpgradeLevels: getCorporationUpgradeLevels(ns),
-        divisionResearches: getDivisionResearches(ns, division.name)
+        corporationUpgradeLevels: corporationUpgradeLevels,
+        divisionResearches: divisionResearches
     };
-    const printLog = (dataEntry: OfficeBenchmarkData) => {
+    const printLog = (...data: unknown[]) => {
+        if (enableLogging) {
+            console.log(...data);
+        }
+    };
+    const printDataEntryLog = (dataEntry: OfficeBenchmarkData) => {
         let message = `{operations:${dataEntry.operations}, engineer:${dataEntry.engineer}, `
             + `business:${dataEntry.business}, management:${dataEntry.management}, `;
         message += `totalExperience:${formatNumber(dataEntry.totalExperience)}, `;
@@ -136,19 +212,21 @@ export async function optimizeOffice(
             `rawProduction:${formatNumber(dataEntry.rawProduction)}, ` +
             `maxSalesVolume:${formatNumber(dataEntry.maxSalesVolume)}, ` +
             `optimalPrice:${formatNumber(dataEntry.optimalPrice)}, ` +
-            `profit:${(dataEntry.profit)}, ` +
+            `profit:${dataEntry.profit.toExponential(5)}, ` +
             `salesEfficiency: ${Math.min(dataEntry.maxSalesVolume / dataEntry.rawProduction, 1).toFixed(3)}`;
         if (isProduct(item)) {
+            message += `, rating: ${formatNumber(dataEntry.productRating)}, `;
+            message += `, markup: ${formatNumber(dataEntry.productMarkup)}, `;
             message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}, `;
-            message += `, profit_progress: ${(dataEntry.profit * dataEntry.productDevelopmentProgress).toFixed(5)}}`;
+            message += `, profit_progress: ${(dataEntry.profit * dataEntry.productDevelopmentProgress).toExponential(5)}}`;
         } else {
             message += "}";
         }
-        console.log(message);
+        printLog(message);
     };
 
     const min = 1;
-    const max = Math.floor(maxTotalEmployees * 0.6);
+    const max = Math.floor(maxTotalEmployees * 0.65);
     let maxUsedStep = 0;
     let error: unknown;
     const workload: Workload = async (
@@ -171,7 +249,6 @@ export async function optimizeOffice(
         return workerWrapper.optimizeOffice(
             division,
             industryData,
-            city,
             {
                 min: operationsJob.min,
                 max: operationsJob.max
@@ -211,7 +288,8 @@ export async function optimizeOffice(
             min: min,
             max: max
         },
-        workload
+        workload,
+        enableLogging
     );
     if (error) {
         throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
@@ -220,17 +298,17 @@ export async function optimizeOffice(
 
     let count = 0;
     while (true) {
-        console.log(`maxUsedStep: ${maxUsedStep}`);
+        printLog(`maxUsedStep: ${maxUsedStep}`);
         if (count >= maxRerun) {
             break;
         }
         if (maxUsedStep === 1) {
             break;
         }
-        console.log("Rerun benchmark to get more accurate data");
+        printLog("Rerun benchmark to get more accurate data");
         const currentBestResult = data[data.length - 1];
-        console.log("Current best result:");
-        printLog(currentBestResult);
+        printLog("Current best result:");
+        printDataEntryLog(currentBestResult);
         await splitWorkload(
             ns,
             {
@@ -245,7 +323,8 @@ export async function optimizeOffice(
                 min: currentBestResult.management - maxUsedStep,
                 max: currentBestResult.management + maxUsedStep
             },
-            workload
+            workload,
+            enableLogging
         );
         if (error) {
             throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
@@ -259,7 +338,8 @@ export async function optimizeOffice(
         dataForLogging = dataForLogging.slice(-20);
     }
     dataForLogging.forEach(dataEntry => {
-        printLog(dataEntry);
+        printDataEntryLog(dataEntry);
     });
+
     return data;
 }

@@ -33,6 +33,10 @@ export function parseNumber(input: number | string | null | undefined) {
     return Number(input);
 }
 
+export function mapToJson(map: Map<unknown, unknown>): string {
+    return JSON.stringify(map, (_key, value) => (value instanceof Map ? [...value] : value));
+}
+
 //-------------------------------------------------- Random functions --------------------------------------------------
 // Ref 1: https://dimitri.xyz/random-ints-from-random-bits/
 // Ref 2: https://github.com/nodejs/node/blob/main/lib/internal/crypto/random.js
@@ -41,7 +45,7 @@ export function parseNumber(input: number | string | null | undefined) {
  * @param {Number} range
  * @returns {Number} Returned value is in interval [0, range)
  */
-function getRandomIntegerLessThan(range: number): number {
+export function getRandomIntegerLessThan(range: number): number {
     // 32 bit maximum
     const maxRange = 4294967296;  // 2^32
     /* extended range rejection sampling */
@@ -64,7 +68,7 @@ function getRandomIntegerLessThan(range: number): number {
  * @param {Number} max
  * @returns {Number} Returned value is in interval [low, high)
  */
-function getRandomInteger(min: number, max: number): number {
+export function getRandomInteger(min: number, max: number): number {
     if (min > max) {
         throw new Error(`Min is larger than max. Min: ${min}. Max: ${max}.`);
     }

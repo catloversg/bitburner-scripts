@@ -6,11 +6,10 @@ import {
     calculateDivisionRawProduction,
     CeresSolverResult,
     CityName,
-    CorpEmployeePosition,
     CorporationUpgradeLevels,
-    CorpResearchName,
     CorpState,
     DivisionResearches,
+    EmployeePosition,
     getAdvertisingFactors,
     getBusinessFactor,
     getMarketFactor,
@@ -18,6 +17,10 @@ import {
     getResearchSalesMultiplier,
     getUpgradeBenefit,
     MaterialName,
+    OfficeSetup,
+    OfficeSetupJobs,
+    productMarketPriceMultiplier,
+    ResearchName,
     UnlockName,
     UpgradeName
 } from "/corporationFormulas";
@@ -134,15 +137,16 @@ export function upgradeWarehouse(ns: NS, divisionName: string, city: CityName, t
  * @param divisionName
  */
 export async function buyTeaAndThrowParty(ns: NS, divisionName: string) {
+    // noinspection DuplicatedCode
     while (true) {
         let finish = true;
         for (const city of cities) {
             const office = ns.corporation.getOffice(divisionName, city);
-            if (office.avgEnergy < 98) {
+            if (office.avgEnergy < 99) {
                 ns.corporation.buyTea(divisionName, city);
                 finish = false;
             }
-            if (office.avgMorale < 98) {
+            if (office.avgMorale < 99) {
                 ns.corporation.throwParty(divisionName, city, 500000);
                 finish = false;
             }
@@ -160,98 +164,163 @@ export async function buyTeaAndThrowParty(ns: NS, divisionName: string) {
 export function buyTeaAndThrowPartyForAllDivisions(ns: NS) {
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
         const office = ns.corporation.getOffice(divisionName, city);
-        if (office.avgEnergy < 98) {
+        if (office.avgEnergy < 99) {
             ns.corporation.buyTea(divisionName, city);
         }
-        if (office.avgMorale < 98) {
+        if (office.avgMorale < 99) {
             ns.corporation.throwParty(divisionName, city, 500000);
         }
     });
 }
 
-export async function assignJobs(ns: NS, divisionName: string, cities: CityName[], jobs: {
-    name: string;
-    amount: number;
+export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
+    name: EmployeePosition;
+    count: number;
 }[]) {
-    // Reset all jobs
-    for (const city of cities) {
-        for (const jobName of Object.values(CorpEmployeePosition)) {
-            ns.corporation.setAutoJobAssignment(divisionName, city, jobName, 0);
+    const officeSetupJobs: OfficeSetupJobs = {
+        Operations: 0,
+        Engineer: 0,
+        Business: 0,
+        Management: 0,
+        "Research & Development": 0,
+    };
+    for (const job of jobs) {
+        switch (job.name) {
+            case EmployeePosition.OPERATIONS:
+                officeSetupJobs.Operations = job.count;
+                break;
+            case EmployeePosition.ENGINEER:
+                officeSetupJobs.Engineer = job.count;
+                break;
+            case EmployeePosition.BUSINESS:
+                officeSetupJobs.Business = job.count;
+                break;
+            case EmployeePosition.MANAGEMENT:
+                officeSetupJobs.Management = job.count;
+                break;
+            case EmployeePosition.RESEARCH_DEVELOPMENT:
+                officeSetupJobs["Research & Development"] = job.count;
+                break;
+            default:
+                throw new Error(`Invalid job: ${job.name}`);
         }
     }
-    // Assign jobs
+    const officeSetups: OfficeSetup[] = [];
+    // const officeSetupJobs
     for (const city of cities) {
-        for (const job of jobs) {
-            if (!ns.corporation.setAutoJobAssignment(divisionName, city, job.name, job.amount)) {
-                ns.print(`Cannot assign job properly. City: ${city}, job: ${job.name}, amount: ${job.amount}`);
+        officeSetups.push({
+            city: city,
+            size: size,
+            jobs: officeSetupJobs
+        });
+    }
+    return officeSetups;
+}
+
+export function assignJobs(ns: NS, divisionName: string, officeSetups: OfficeSetup[], verify = false) {
+    for (const officeSetup of officeSetups) {
+        // Reset all jobs
+        for (const jobName of Object.values(EmployeePosition)) {
+            ns.corporation.setAutoJobAssignment(divisionName, officeSetup.city, jobName, 0);
+        }
+        // Assign jobs
+        for (const [jobName, count] of Object.entries(officeSetup.jobs)) {
+            if (!ns.corporation.setAutoJobAssignment(divisionName, officeSetup.city, jobName, count)) {
+                ns.print(`Cannot assign job properly. City: ${officeSetup.city}, job: ${jobName}, count: ${count}`);
             }
         }
     }
-    await ns.corporation.nextUpdate();
-    await waitUntilState(ns, CorpState.START);
-    for (const city of cities) {
-        const office = ns.corporation.getOffice(divisionName, city);
-        // Check for Unassigned employees
-        const unassignedEmployees = office.employeeJobs.Unassigned;
-        if (unassignedEmployees > 0) {
-            ns.print(`WARNING: There are ${unassignedEmployees} unassigned employees. Automatically assign them to ${CorpEmployeePosition.RESEARCH_DEVELOPMENT}.`);
-            ns.corporation.setAutoJobAssignment(divisionName, city, CorpEmployeePosition.RESEARCH_DEVELOPMENT, unassignedEmployees);
-        }
+    if (!verify) {
+        return;
     }
+    ns.corporation.nextUpdate().then(() => {
+        waitUntilState(ns, CorpState.START).then(() => {
+            for (const city of cities) {
+                const office = ns.corporation.getOffice(divisionName, city);
+                // Check for Unassigned employees
+                const unassignedEmployees = office.employeeJobs.Unassigned;
+                if (unassignedEmployees > 0) {
+                    ns.print(`WARNING: There are ${unassignedEmployees} unassigned employees. Automatically assign them to ${EmployeePosition.RESEARCH_DEVELOPMENT}.`);
+                    ns.corporation.setAutoJobAssignment(divisionName, city, EmployeePosition.RESEARCH_DEVELOPMENT, unassignedEmployees);
+                }
+            }
+        });
+    });
 }
 
-export async function upgradeOffices(ns: NS, divisionName: string, cities: CityName[], newSize: number, jobs: {
-    name: string;
-    amount: number;
-}[]) {
-    for (const city of cities) {
-        const office = ns.corporation.getOffice(divisionName, city);
-        if (newSize < office.size) {
-            ns.print(`Office's new size is smaller than current size. City: ${city}`);
+export function upgradeOffices(ns: NS, divisionName: string, officeSetups: OfficeSetup[]) {
+    for (const officeSetup of officeSetups) {
+        const office = ns.corporation.getOffice(divisionName, officeSetup.city);
+        if (officeSetup.size < office.size) {
+            ns.print(`Office's new size is smaller than current size. City: ${officeSetup.city}`);
             continue;
         }
-        if (newSize > office.size) {
+        if (officeSetup.size > office.size) {
             // Upgrade office
-            ns.corporation.upgradeOfficeSize(divisionName, city, newSize - office.size);
+            ns.corporation.upgradeOfficeSize(divisionName, officeSetup.city, officeSetup.size - office.size);
         }
         // Hire employees
         // eslint-disable-next-line no-empty
-        while (ns.corporation.hireEmployee(divisionName, city)) {
+        while (ns.corporation.hireEmployee(divisionName, officeSetup.city)) {
         }
     }
     // Assign jobs
-    await assignJobs(ns, divisionName, cities, jobs);
+    assignJobs(ns, divisionName, officeSetups, false);
     ns.print(`Upgrade offices completed`);
 }
 
-export async function buyMaterials(ns: NS, divisionName: string, cities: CityName[], materials: {
-    name: string;
-    amount: number;
-}[], discardExceeded = false) {
+export function generateMaterialsOrders(
+    cities: CityName[],
+    materials: {
+        name: MaterialName;
+        count: number;
+    }[]
+) {
+    const orders = [];
+    for (const city of cities) {
+        orders.push({
+            city: city,
+            materials: materials
+        });
+    }
+    return orders;
+}
+
+export async function stockMaterials(
+    ns: NS,
+    divisionName: string,
+    orders: {
+        city: CityName,
+        materials: {
+            name: MaterialName;
+            count: number;
+        }[]
+    }[],
+    discardExceeded = false
+) {
     while (true) {
         let finish = true;
-        for (const city of cities) {
-            for (const material of materials) {
-                const storedAmount = ns.corporation.getMaterial(divisionName, city, material.name).stored;
-                if (storedAmount === material.amount) {
-                    ns.corporation.buyMaterial(divisionName, city, material.name, 0);
-                    ns.corporation.sellMaterial(divisionName, city, material.name, "0", "MP");
+        for (const order of orders) {
+            for (const material of order.materials) {
+                const storedAmount = ns.corporation.getMaterial(divisionName, order.city, material.name).stored;
+                if (storedAmount === material.count) {
+                    ns.corporation.buyMaterial(divisionName, order.city, material.name, 0);
+                    ns.corporation.sellMaterial(divisionName, order.city, material.name, "0", "MP");
                     continue;
                 }
                 // Buy
-                if (storedAmount < material.amount) {
-                    ns.corporation.buyMaterial(divisionName, city, material.name, (material.amount - storedAmount) / 10);
-                    ns.corporation.sellMaterial(divisionName, city, material.name, "0", "MP");
+                if (storedAmount < material.count) {
+                    ns.corporation.buyMaterial(divisionName, order.city, material.name, (material.count - storedAmount) / 10);
+                    ns.corporation.sellMaterial(divisionName, order.city, material.name, "0", "MP");
                     finish = false;
                 }
                 // Discard
                 else if (discardExceeded) {
-                    ns.corporation.buyMaterial(divisionName, city, material.name, 0);
-                    ns.corporation.sellMaterial(divisionName, city, material.name, ((storedAmount - material.amount) / 10).toString(), "0");
+                    ns.corporation.buyMaterial(divisionName, order.city, material.name, 0);
+                    ns.corporation.sellMaterial(divisionName, order.city, material.name, ((storedAmount - material.count) / 10).toString(), "0");
                     finish = false;
                 }
             }
-
         }
         if (finish) {
             break;
@@ -281,28 +350,28 @@ export function getCorporationUpgradeLevels(ns: NS): CorporationUpgradeLevels {
 
 export function getDivisionResearches(ns: NS, divisionName: string): DivisionResearches {
     const divisionResearches: DivisionResearches = {
-        [CorpResearchName.Lab]: false,
-        [CorpResearchName.AutoBrew]: false,
-        [CorpResearchName.AutoParty]: false,
-        [CorpResearchName.AutoDrug]: false,
-        [CorpResearchName.CPH4Inject]: false,
-        [CorpResearchName.Drones]: false,
-        [CorpResearchName.DronesAssembly]: false,
-        [CorpResearchName.DronesTransport]: false,
-        [CorpResearchName.GoJuice]: false,
-        [CorpResearchName.RecruitHR]: false,
-        [CorpResearchName.TrainingHR]: false,
-        [CorpResearchName.MarketTa1]: false,
-        [CorpResearchName.MarketTa2]: false,
-        [CorpResearchName.Overclock]: false,
-        [CorpResearchName.SelfCorrectAssemblers]: false,
-        [CorpResearchName.Stimu]: false,
-        [CorpResearchName.Capacity1]: false,
-        [CorpResearchName.Capacity2]: false,
-        [CorpResearchName.Dashboard]: false,
-        [CorpResearchName.Fulcrum]: false
+        [ResearchName.HI_TECH_RND_LABORATORY]: false,
+        [ResearchName.AUTO_BREW]: false,
+        [ResearchName.AUTO_PARTY]: false,
+        [ResearchName.AUTO_DRUG]: false,
+        [ResearchName.CPH4_INJECT]: false,
+        [ResearchName.DRONES]: false,
+        [ResearchName.DRONES_ASSEMBLY]: false,
+        [ResearchName.DRONES_TRANSPORT]: false,
+        [ResearchName.GO_JUICE]: false,
+        [ResearchName.HR_BUDDY_RECRUITMENT]: false,
+        [ResearchName.HR_BUDDY_TRAINING]: false,
+        [ResearchName.MARKET_TA_1]: false,
+        [ResearchName.MARKET_TA_2]: false,
+        [ResearchName.OVERCLOCK]: false,
+        [ResearchName.SELF_CORRECTING_ASSEMBLERS]: false,
+        [ResearchName.STIMU]: false,
+        [ResearchName.UPGRADE_CAPACITY_1]: false,
+        [ResearchName.UPGRADE_CAPACITY_2]: false,
+        [ResearchName.UPGRADE_DASHBOARD]: false,
+        [ResearchName.UPGRADE_FULCRUM]: false
     };
-    for (const researchName of Object.values(CorpResearchName)) {
+    for (const researchName of Object.values(ResearchName)) {
         divisionResearches[researchName] = ns.corporation.hasResearched(divisionName, researchName);
     }
     return divisionResearches;
@@ -328,10 +397,20 @@ export async function initDivision(ns: NS, divisionName: string, officeSize: num
         }
     }
     // Set up all cities
-    await upgradeOffices(ns, divisionName, cities, officeSize, [{
-        name: CorpEmployeePosition.RESEARCH_DEVELOPMENT,
-        amount: officeSize
-    }]);
+    upgradeOffices(
+        ns,
+        divisionName,
+        generateOfficeSetups(
+            cities,
+            officeSize,
+            [
+                {
+                    name: EmployeePosition.RESEARCH_DEVELOPMENT,
+                    count: officeSize
+                }
+            ]
+        )
+    );
     for (const city of cities) {
         upgradeWarehouse(ns, divisionName, city, warehouseLevel);
         // Enable Smart Supply
@@ -414,16 +493,6 @@ export function calculateRequiredQuantityOfInputMaterial(
     productSize?: number
 ): number {
     const officeData = ns.corporation.getOffice(division.name, city);
-    const researches = [];
-    if (ns.corporation.hasResearched(division.name, CorpResearchName.DronesAssembly)) {
-        researches.push(CorpResearchName.DronesAssembly);
-    }
-    if (ns.corporation.hasResearched(division.name, CorpResearchName.SelfCorrectAssemblers)) {
-        researches.push(CorpResearchName.SelfCorrectAssemblers);
-    }
-    if (isProduct && ns.corporation.hasResearched(division.name, CorpResearchName.Fulcrum)) {
-        researches.push(CorpResearchName.Fulcrum);
-    }
     let rawProduction = calculateDivisionRawProduction(
         isProduct,
         {
@@ -512,7 +581,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         // stored units. However, some simple versions of Smart Supply script cannot do that. This mitigation can be
         // useful in those cases. I only leave this code here for reference purposes.
         if (isWarehouseCongested) {
-            ns.alert(`Warehouse may be congested. Division: ${divisionName}, city: ${city}.`);
+            ns.toast(`Warehouse may be congested. Division: ${divisionName}, city: ${city}.`, "warning");
             for (const [materialName] of requiredMaterials) {
                 // Clear purchase
                 ns.corporation.buyMaterial(divisionName, city, materialName, 0);
@@ -617,30 +686,34 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
             ns.corporation.buyMaterial(divisionName, city, materialName, inputMaterialData.requiredQuantity / 10);
         }
     });
+    if (ns.corporation.getCorporation().nextState !== "PURCHASE") {
+        ns.toast("Custom Smart Supply script runs too slowly", "warning");
+    }
 }
 
 /**
  * @param ns
- * @param divisionName
+ * @param division
+ * @param industryData
  * @param city
  * @param useWarehouseSize If false, function uses unused storage size after PRODUCTION state
  * @param ratio
  */
 export async function findOptimalBoostMaterialAmount(
     ns: NS,
-    divisionName: string,
+    division: Division,
+    industryData: CorpIndustryData,
     city: CityName,
     useWarehouseSize: boolean,
     ratio: number): Promise<number[]> {
-    const division = ns.corporation.getDivision(divisionName);
-    const industryData = ns.corporation.getIndustryData(division.type);
-    const warehouseSize = ns.corporation.getWarehouse(divisionName, city).size;
+    const warehouseSize = ns.corporation.getWarehouse(division.name, city).size;
     if (useWarehouseSize) {
         return optimizeBoostMaterialQuantities(industryData, warehouseSize * ratio);
     }
     await waitUntilState(ns, CorpState.PRODUCTION);
-    const available = ns.corporation.getWarehouse(divisionName, city).size - ns.corporation.getWarehouse(divisionName, city).sizeUsed;
-    return optimizeBoostMaterialQuantities(industryData, available * ratio);
+    const availableSpace = ns.corporation.getWarehouse(division.name, city).size
+        - ns.corporation.getWarehouse(division.name, city).sizeUsed;
+    return optimizeBoostMaterialQuantities(industryData, availableSpace * ratio);
 }
 
 export async function waitUntilHavingEnoughResearchPoints(ns: NS, conditions: {
@@ -665,20 +738,78 @@ export async function waitUntilHavingEnoughResearchPoints(ns: NS, conditions: {
 }
 
 /**
- * ["Tobacco-000", "Tobacco-001", "Tobacco-002"] => "Tobacco-003"
+ * ["Tobacco-00000|1e12", "Tobacco-00001|1e12", "Tobacco-00002|1e12"] => "Tobacco-00003|1e12"
+ * 1e12 is designInvest + marketingInvest
  *
  * @param ns
  * @param divisionName
+ * @param productDevelopmentBudget
  */
-export function generateNextProductName(ns: NS, divisionName: string) {
-    const products = ns.corporation.getDivision(divisionName).products;
-    const maxProductIndex = products
-        .map(productName => parseNumber(productName.replace(`${divisionName}-`, "")))
-        .filter(productIndex => !Number.isNaN(productIndex));
-    if (maxProductIndex.length === 0) {
-        return `${divisionName}-000`;
+export function generateNextProductName(ns: NS, divisionName: string, productDevelopmentBudget: number) {
+    if (!Number.isFinite(productDevelopmentBudget) || productDevelopmentBudget < 1e3) {
+        throw new Error(`Invalid budget: ${productDevelopmentBudget}`);
     }
-    return `${divisionName}-${(Math.max(...maxProductIndex) + 1).toString().padStart(3, "0")}`;
+    const products = ns.corporation.getDivision(divisionName).products;
+    const productIdArray = products
+        .map(productName => {
+            const productNameParts = productName.split("-");
+            if (productNameParts.length != 3) {
+                return NaN;
+            }
+            return parseNumber(productNameParts[1]);
+        })
+        .filter(productIndex => !Number.isNaN(productIndex));
+    if (productIdArray.length === 0) {
+        return `${divisionName}-00000-${productDevelopmentBudget.toExponential(5)}`;
+    }
+    return `${divisionName}-${(Math.max(...productIdArray) + 1).toString().padStart(5, "0")}-${productDevelopmentBudget.toExponential(5)}`;
+}
+
+function getMaxNumberOfProducts(ns: NS, divisionName: string) {
+    let maxNumberOfProducts = 3;
+    if (ns.corporation.hasResearched(divisionName, ResearchName.UPGRADE_CAPACITY_1)) {
+        maxNumberOfProducts = 4;
+    }
+    if (ns.corporation.hasResearched(divisionName, ResearchName.UPGRADE_CAPACITY_2)) {
+        maxNumberOfProducts = 5;
+    }
+    return maxNumberOfProducts;
+}
+
+export function developNewProduct(ns: NS, divisionName: string, mainProductDevelopmentCity: CityName) {
+    const productDevelopmentBudget = ns.corporation.getCorporation().funds * 0.01;
+    const products = ns.corporation.getDivision(divisionName).products;
+    if (products.length === getMaxNumberOfProducts(ns, divisionName)) {
+        let worstProduct = null;
+        let minProductRating = Number.MAX_VALUE;
+        for (const product of products) {
+            const productRating = ns.corporation.getProduct(divisionName, mainProductDevelopmentCity, product).rating;
+            if (productRating >= minProductRating) {
+                continue;
+            }
+            worstProduct = product;
+            minProductRating = productRating;
+        }
+        if (!worstProduct) {
+            throw new Error("Cannot find worst product to discontinue");
+        }
+        ns.corporation.discontinueProduct(divisionName, worstProduct);
+    }
+    ns.corporation.makeProduct(
+        divisionName,
+        mainProductDevelopmentCity,
+        generateNextProductName(ns, divisionName, productDevelopmentBudget),
+        productDevelopmentBudget / 2,
+        productDevelopmentBudget / 2,
+    );
+}
+
+export function getLatestProductName(ns: NS, divisionName: string) {
+    const products = ns.corporation.getDivision(divisionName).products;
+    if (products.length === 0) {
+        return null;
+    }
+    return products[products.length - 1];
 }
 
 export async function getProductMarkup(
@@ -783,6 +914,17 @@ export function isProduct(item: Material | Product): item is Product {
     return "rating" in item;
 }
 
+export function validateProductMarkupMap(ns: NS) {
+    for (const productKey of productMarkupMap.keys()) {
+        const productKeyInfo = productKey.split("|");
+        const divisionName = productKeyInfo[0];
+        const productName = productKeyInfo[2];
+        if (!ns.corporation.getDivision(divisionName).products.includes(productName)) {
+            productMarkupMap.delete(productKey);
+        }
+    }
+}
+
 /**
  * Custom Market-TA.II script
  *
@@ -851,7 +993,7 @@ export async function findOptimalSellingPrice(
         marketPrice = item.marketPrice;
     }
 
-    const businessFactor = getBusinessFactor(office.employeeProductionByJob[CorpEmployeePosition.BUSINESS]);
+    const businessFactor = getBusinessFactor(office.employeeProductionByJob[EmployeePosition.BUSINESS]);
     const advertisingFactor = getAdvertisingFactors(division.awareness, division.popularity, industryData.advertisingFactor!)[0];
     const marketFactor = getMarketFactor(item.demand!, item.competition!);
     const salesMultipliers =
@@ -863,6 +1005,19 @@ export async function findOptimalSellingPrice(
         getResearchSalesMultiplier(getDivisionResearches(ns, division.name));
     const optimalPrice = markupLimit / Math.sqrt(expectedSalesVolume / salesMultipliers) + marketPrice;
     // ns.print(`item: ${item.name}, optimalPrice: ${ns.formatNumber(optimalPrice)}`);
+    // if (item.name.startsWith("Tobacco-00000") || item.name.startsWith("Tobacco-00001")) {
+    //     console.log(item.name);
+    //     console.log(`businessFactor: ${businessFactor}`);
+    //     console.log(`advertisingFactor: ${advertisingFactor}`);
+    //     console.log(`marketFactor: ${marketFactor}`);
+    //     console.log(`salesMultipliers: ${salesMultipliers}`);
+    //     console.log(`productMarkup: ${productMarkup}`);
+    //     console.log(`markupLimit: ${markupLimit}`);
+    //     console.log(`expectedSalesVolume: ${expectedSalesVolume}`);
+    //     console.log(`marketPrice: ${marketPrice}`);
+    //     console.log(`optimalPrice: ${optimalPrice}`);
+    //     console.log("++++++++++++++++++++++++++++++++");
+    // }
 
     return optimalPrice.toString();
 }
@@ -875,20 +1030,11 @@ export async function setOptimalSellingPrice(ns: NS) {
         || !ns.corporation.hasUnlock(UnlockName.MARKET_DATA_COMPETITION)) {
         return;
     }
-    // Remove nonexistent product in productMarkupMap
-    for (const productKey of productMarkupMap.keys()) {
-        const productKeyInfo = productKey.split("|");
-        const divisionName = productKeyInfo[0];
-        const productName = productKeyInfo[2];
-        if (!ns.corporation.getDivision(divisionName).products.includes(productName)) {
-            productMarkupMap.delete(productKey);
-        }
-    }
     await loopAllDivisionsAndCitiesAsyncCallback(ns, async (divisionName, city) => {
         const division = ns.corporation.getDivision(divisionName);
         const industryData = ns.corporation.getIndustryData(division.type);
         const products = division.products;
-        const hasMarketTA2 = ns.corporation.hasResearched(divisionName, CorpResearchName.MarketTa2);
+        const hasMarketTA2 = ns.corporation.hasResearched(divisionName, ResearchName.MARKET_TA_2);
         if (industryData.makesProducts) {
             // Set sell price for products
             for (const productName of products) {
@@ -901,7 +1047,9 @@ export async function setOptimalSellingPrice(ns: NS) {
                     continue;
                 }
                 const optimalPrice = await findOptimalSellingPrice(ns, division, industryData, city, product);
-                ns.corporation.sellProduct(divisionName, city, productName, "MAX", optimalPrice, false);
+                if (parseNumber(optimalPrice) > 0) {
+                    ns.corporation.sellProduct(divisionName, city, productName, "MAX", optimalPrice, false);
+                }
             }
         }
         if (industryData.makesMaterials) {
@@ -913,7 +1061,9 @@ export async function setOptimalSellingPrice(ns: NS) {
                     continue;
                 }
                 const optimalPrice = await findOptimalSellingPrice(ns, division, industryData, city, material);
-                ns.corporation.sellMaterial(divisionName, city, materialName, "MAX", optimalPrice);
+                if (parseNumber(optimalPrice) > 0) {
+                    ns.corporation.sellMaterial(divisionName, city, materialName, "MAX", optimalPrice);
+                }
             }
         }
     });
@@ -924,9 +1074,69 @@ export function calculateResearchPointGainRate(ns: NS, divisionName: string) {
     for (const city of cities) {
         const office = ns.corporation.getOffice(divisionName, city);
         // 4 states: PURCHASE, PRODUCTION, EXPORT and SALE
-        totalGainRate += 4 * 0.004 * Math.pow(office.employeeProductionByJob[CorpEmployeePosition.RESEARCH_DEVELOPMENT], 0.5)
+        totalGainRate += 4 * 0.004 * Math.pow(office.employeeProductionByJob[EmployeePosition.RESEARCH_DEVELOPMENT], 0.5)
             * getUpgradeBenefit(UpgradeName.PROJECT_INSIGHT, ns.corporation.getUpgradeLevel(UpgradeName.PROJECT_INSIGHT))
             * getResearchRPMultiplier(getDivisionResearches(ns, divisionName));
     }
     return totalGainRate;
+}
+
+export async function buyBoostMaterials(ns: NS, division: Division, ratio = 0.5) {
+    const industryData = ns.corporation.getIndustryData(division.type);
+    while (true) {
+        await waitUntilState(ns, CorpState.PRODUCTION);
+        let finish = true;
+        const orders = [];
+        for (const city of cities) {
+            const warehouse = ns.corporation.getWarehouse(division.name, city);
+            const availableSpace = warehouse.size - warehouse.sizeUsed;
+            if (availableSpace < warehouse.size * 0.1) {
+                continue;
+            }
+            const boostMaterialQuantities = optimizeBoostMaterialQuantities(industryData, availableSpace * ratio);
+            orders.push({
+                city: city,
+                materials: [
+                    {
+                        name: MaterialName.AI_CORES,
+                        count: ns.corporation.getMaterial(division.name, city, MaterialName.AI_CORES).stored + boostMaterialQuantities[0]
+                    },
+                    {
+                        name: MaterialName.HARDWARE,
+                        count: ns.corporation.getMaterial(division.name, city, MaterialName.HARDWARE).stored + boostMaterialQuantities[1]
+                    },
+                    {
+                        name: MaterialName.REAL_ESTATE,
+                        count: ns.corporation.getMaterial(division.name, city, MaterialName.REAL_ESTATE).stored + boostMaterialQuantities[2]
+                    },
+                    {
+                        name: MaterialName.ROBOTS,
+                        count: ns.corporation.getMaterial(division.name, city, MaterialName.ROBOTS).stored + boostMaterialQuantities[3]
+                    },
+                ]
+            });
+            finish = false;
+        }
+        if (finish) {
+            break;
+        }
+        await stockMaterials(
+            ns,
+            division.name,
+            orders
+        );
+    }
+}
+
+export function calculateProductMarketPrice(
+    ns: NS,
+    division: Division,
+    industryData: CorpIndustryData,
+    city: CityName) {
+    let productMarketPrice = 0;
+    for (const [materialName, materialCoefficient] of getRecordEntries(industryData.requiredMaterials)) {
+        const materialMarketPrice = ns.corporation.getMaterial(division.name, city, materialName).marketPrice;
+        productMarketPrice += materialMarketPrice * materialCoefficient;
+    }
+    return productMarketPrice * productMarketPriceMultiplier;
 }

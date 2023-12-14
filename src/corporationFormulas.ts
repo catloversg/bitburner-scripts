@@ -17,30 +17,6 @@ export enum CityName {
     Volhaven = "Volhaven",
 }
 
-// Do NOT rename. These definitions were copied from src\Corporation\Enums.ts
-export enum CorpResearchName {
-    Lab = "Hi-Tech R&D Laboratory",
-    AutoBrew = "AutoBrew",
-    AutoParty = "AutoPartyManager",
-    AutoDrug = "Automatic Drug Administration",
-    CPH4Inject = "CPH4 Injections",
-    Drones = "Drones",
-    DronesAssembly = "Drones - Assembly",
-    DronesTransport = "Drones - Transport",
-    GoJuice = "Go-Juice",
-    RecruitHR = "HRBuddy-Recruitment",
-    TrainingHR = "HRBuddy-Training",
-    MarketTa1 = "Market-TA.I",
-    MarketTa2 = "Market-TA.II",
-    Overclock = "Overclock",
-    SelfCorrectAssemblers = "Self-Correcting Assemblers",
-    Stimu = "Sti.mu",
-    Capacity1 = "uPgrade: Capacity.I",
-    Capacity2 = "uPgrade: Capacity.II",
-    Dashboard = "uPgrade: Dashboard",
-    Fulcrum = "uPgrade: Fulcrum",
-}
-
 export enum CorpState {
     START = "START",
     PURCHASE = "PURCHASE",
@@ -89,7 +65,7 @@ export enum UpgradeName {
     PROJECT_INSIGHT = "Project Insight"
 }
 
-export enum CorpEmployeePosition {
+export enum EmployeePosition {
     OPERATIONS = "Operations",
     ENGINEER = "Engineer",
     BUSINESS = "Business",
@@ -99,8 +75,45 @@ export enum CorpEmployeePosition {
     UNASSIGNED = "Unassigned"
 }
 
+export enum ResearchName {
+    HI_TECH_RND_LABORATORY = "Hi-Tech R&D Laboratory",
+    AUTO_BREW = "AutoBrew",
+    AUTO_PARTY = "AutoPartyManager",
+    AUTO_DRUG = "Automatic Drug Administration",
+    CPH4_INJECT = "CPH4 Injections",
+    DRONES = "Drones",
+    DRONES_ASSEMBLY = "Drones - Assembly",
+    DRONES_TRANSPORT = "Drones - Transport",
+    GO_JUICE = "Go-Juice",
+    HR_BUDDY_RECRUITMENT = "HRBuddy-Recruitment",
+    HR_BUDDY_TRAINING = "HRBuddy-Training",
+    MARKET_TA_1 = "Market-TA.I",
+    MARKET_TA_2 = "Market-TA.II",
+    OVERCLOCK = "Overclock",
+    SELF_CORRECTING_ASSEMBLERS = "Self-Correcting Assemblers",
+    STIMU = "Sti.mu",
+    UPGRADE_CAPACITY_1 = "uPgrade: Capacity.I",
+    UPGRADE_CAPACITY_2 = "uPgrade: Capacity.II",
+    UPGRADE_DASHBOARD = "uPgrade: Dashboard",
+    UPGRADE_FULCRUM = "uPgrade: Fulcrum",
+}
+
+export interface OfficeSetupJobs {
+    Operations: number;
+    Engineer: number;
+    Business: number;
+    Management: number;
+    "Research & Development": number;
+}
+
+export interface OfficeSetup {
+    city: CityName;
+    size: number;
+    jobs: OfficeSetupJobs;
+}
+
 export type CorporationUpgradeLevels = Record<UpgradeName, number>;
-export type DivisionResearches = Record<CorpResearchName, boolean>;
+export type DivisionResearches = Record<ResearchName, boolean>;
 
 export interface CeresSolverResult {
     success: boolean;
@@ -112,6 +125,7 @@ export interface CeresSolverResult {
 const warehouseUpgradeBasePrice = 1e9;
 const officeUpgradeBasePrice = 4e9;
 const advertUpgradeBasePrice = 1e9;
+export const productMarketPriceMultiplier = 5;
 
 const numberSuffixList = ["", "k", "m", "b", "t", "q", "Q", "s", "S", "o", "n"];
 // Exponents associated with each suffix
@@ -284,7 +298,7 @@ export function getMaxAffordableAdVertLevel(fromLevel: number, maxCost: number):
 export function getResearchMultiplier(divisionResearches: DivisionResearches, researchDataKey: keyof typeof CorpResearchesData[string]): number {
     let multiplier = 1;
     for (const [researchName, researchData] of Object.entries(CorpResearchesData)) {
-        if (!divisionResearches[<CorpResearchName>researchName]) {
+        if (!divisionResearches[<ResearchName>researchName]) {
             continue;
         }
         const researchDataValue = researchData[researchDataKey];
@@ -415,10 +429,10 @@ export function calculateDivisionRawProduction(
     // Multiplier from researches
     let researchMultiplier = 1;
     researchMultiplier *=
-        (divisionResearches[CorpResearchName.DronesAssembly] ? CorpResearchesData[CorpResearchName.DronesAssembly].productionMult : 1)
-        * (divisionResearches[CorpResearchName.SelfCorrectAssemblers] ? CorpResearchesData[CorpResearchName.SelfCorrectAssemblers].productionMult : 1);
+        (divisionResearches[ResearchName.DRONES_ASSEMBLY] ? CorpResearchesData[ResearchName.DRONES_ASSEMBLY].productionMult : 1)
+        * (divisionResearches[ResearchName.SELF_CORRECTING_ASSEMBLERS] ? CorpResearchesData[ResearchName.SELF_CORRECTING_ASSEMBLERS].productionMult : 1);
     if (isProduct) {
-        researchMultiplier *= (divisionResearches[CorpResearchName.Fulcrum] ? CorpResearchesData[CorpResearchName.Fulcrum].productProductionMult : 1);
+        researchMultiplier *= (divisionResearches[ResearchName.UPGRADE_FULCRUM] ? CorpResearchesData[ResearchName.UPGRADE_FULCRUM].productProductionMult : 1);
     }
 
     return officeMultiplier * divisionProductionMultiplier * upgradeMultiplier * researchMultiplier;
@@ -510,8 +524,8 @@ export async function calculateEmployeeStats(
         avgEnergy: number;
         totalExperience: number;
         numEmployees: number;
-        employeeJobs: Record<CorpEmployeePosition, number>;
-        employeeProductionByJob: Record<CorpEmployeePosition, number>;
+        employeeJobs: Record<EmployeePosition, number>;
+        employeeProductionByJob: Record<EmployeePosition, number>;
     },
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches): Promise<{
@@ -558,33 +572,33 @@ export async function calculateEmployeeStats(
     const productionBase = office.avgMorale * office.avgEnergy * 1e-4;
     const exp = office.totalExperience / office.numEmployees;
     const f1 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
-        return office.employeeJobs[CorpEmployeePosition.OPERATIONS] * productionBase
+        return office.employeeJobs[EmployeePosition.OPERATIONS] * productionBase
             * (0.6 * effectiveIntelligence + 0.1 * effectiveCharisma + exp + 0.5 * effectiveCreativity + effectiveEfficiency)
-            - office.employeeProductionByJob[CorpEmployeePosition.OPERATIONS];
+            - office.employeeProductionByJob[EmployeePosition.OPERATIONS];
     };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f2 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
-        return office.employeeJobs[CorpEmployeePosition.ENGINEER] * productionBase
+        return office.employeeJobs[EmployeePosition.ENGINEER] * productionBase
             * (effectiveIntelligence + 0.1 * effectiveCharisma + 1.5 * exp + effectiveEfficiency)
-            - office.employeeProductionByJob[CorpEmployeePosition.ENGINEER];
+            - office.employeeProductionByJob[EmployeePosition.ENGINEER];
     };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f3 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
-        return office.employeeJobs[CorpEmployeePosition.BUSINESS] * productionBase
+        return office.employeeJobs[EmployeePosition.BUSINESS] * productionBase
             * (0.4 * effectiveIntelligence + effectiveCharisma + 0.5 * exp)
-            - office.employeeProductionByJob[CorpEmployeePosition.BUSINESS];
+            - office.employeeProductionByJob[EmployeePosition.BUSINESS];
     };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f4 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
-        return office.employeeJobs[CorpEmployeePosition.MANAGEMENT] * productionBase
+        return office.employeeJobs[EmployeePosition.MANAGEMENT] * productionBase
             * (2 * effectiveCharisma + exp + 0.2 * effectiveCreativity + 0.7 * effectiveEfficiency)
-            - office.employeeProductionByJob[CorpEmployeePosition.MANAGEMENT];
+            - office.employeeProductionByJob[EmployeePosition.MANAGEMENT];
     };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const f5 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
-        return office.employeeJobs[CorpEmployeePosition.RESEARCH_DEVELOPMENT] * productionBase
+        return office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT] * productionBase
             * (1.5 * effectiveIntelligence + 0.8 * exp + effectiveCreativity + 0.5 * effectiveEfficiency)
-            - office.employeeProductionByJob[CorpEmployeePosition.RESEARCH_DEVELOPMENT];
+            - office.employeeProductionByJob[EmployeePosition.RESEARCH_DEVELOPMENT];
     };
     let solverResult: CeresSolverResult = {
         success: false,
