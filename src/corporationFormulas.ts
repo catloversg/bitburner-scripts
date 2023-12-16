@@ -2,7 +2,7 @@
  * Do NOT use NS functions in this module's functions
  */
 
-import {CorpIndustryData, CorpUpgradeName} from "@ns";
+import {CorpIndustryData, CorpMaterialName, CorpUpgradeName} from "@ns";
 import {CorpResearchesData} from "/data/CorpResearchesData";
 import {CorpUpgradesData} from "/data/CorpUpgradesData";
 import {Ceres} from "/libs/Ceres";
@@ -110,6 +110,20 @@ export interface OfficeSetup {
     city: CityName;
     size: number;
     jobs: OfficeSetupJobs;
+}
+
+export interface ResearchPriority {
+    research: ResearchName;
+    costMultiplier: number;
+}
+
+export interface ExportRoute {
+    material: CorpMaterialName;
+    sourceCity: CityName;
+    sourceDivision: string;
+    destinationDivision: string;
+    destinationCity: CityName;
+    destinationAmount: string;
 }
 
 export type CorporationUpgradeLevels = Record<UpgradeName, number>;
@@ -438,6 +452,33 @@ export function calculateDivisionRawProduction(
     return officeMultiplier * divisionProductionMultiplier * upgradeMultiplier * researchMultiplier;
 }
 
+function calculateUpgradeAndResearchMultiplierForEmployeeStats(
+    corporationUpgradeLevels: CorporationUpgradeLevels,
+    divisionResearches: DivisionResearches) {
+    return {
+        upgradeCreativityMultiplier: getUpgradeBenefit(
+            UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS,
+            corporationUpgradeLevels[UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS]
+        ),
+        upgradeCharismaMultiplier: getUpgradeBenefit(
+            UpgradeName.SPEECH_PROCESSOR_IMPLANTS,
+            corporationUpgradeLevels[UpgradeName.SPEECH_PROCESSOR_IMPLANTS]
+        ),
+        upgradeIntelligenceMultiplier: getUpgradeBenefit(
+            UpgradeName.NEURAL_ACCELERATORS,
+            corporationUpgradeLevels[UpgradeName.NEURAL_ACCELERATORS]
+        ),
+        upgradeEfficiencyMultiplier: getUpgradeBenefit(
+            UpgradeName.FOCUS_WIRES,
+            corporationUpgradeLevels[UpgradeName.FOCUS_WIRES]
+        ),
+        researchCreativityMultiplier: getResearchEmployeeCreativityMultiplier(divisionResearches),
+        researchCharismaMultiplier: getResearchEmployeeCharismaMultiplier(divisionResearches),
+        researchIntelligenceMultiplier: getResearchEmployeeIntelligenceMultiplier(divisionResearches),
+        researchEfficiencyMultiplier: getResearchEmployeeEfficiencyMultiplier(divisionResearches),
+    };
+}
+
 export function calculateEmployeeProductionByJobs(
     office: {
         avgIntelligence: number;
@@ -460,32 +501,19 @@ export function calculateEmployeeProductionByJobs(
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches
 ) {
-    const upgradeCreativityMultiplier = getUpgradeBenefit(
-        UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS,
-        corporationUpgradeLevels[UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS]
-    );
-    const upgradeCharismaMultiplier = getUpgradeBenefit(
-        UpgradeName.SPEECH_PROCESSOR_IMPLANTS,
-        corporationUpgradeLevels[UpgradeName.SPEECH_PROCESSOR_IMPLANTS]
-    );
-    const upgradeIntelligenceMultiplier = getUpgradeBenefit(
-        UpgradeName.NEURAL_ACCELERATORS,
-        corporationUpgradeLevels[UpgradeName.NEURAL_ACCELERATORS]
-    );
-    const upgradeEfficiencyMultiplier = getUpgradeBenefit(
-        UpgradeName.FOCUS_WIRES,
-        corporationUpgradeLevels[UpgradeName.FOCUS_WIRES]
+    const upgradeAndResearchMultiplier = calculateUpgradeAndResearchMultiplierForEmployeeStats(
+        corporationUpgradeLevels,
+        divisionResearches
     );
 
-    const researchCreativityMultiplier = getResearchEmployeeCreativityMultiplier(divisionResearches);
-    const researchCharismaMultiplier = getResearchEmployeeCharismaMultiplier(divisionResearches);
-    const researchIntelligenceMultiplier = getResearchEmployeeIntelligenceMultiplier(divisionResearches);
-    const researchEfficiencyMultiplier = getResearchEmployeeEfficiencyMultiplier(divisionResearches);
-
-    const effectiveIntelligence = office.avgIntelligence * upgradeIntelligenceMultiplier * researchIntelligenceMultiplier;
-    const effectiveCharisma = office.avgCharisma * upgradeCharismaMultiplier * researchCharismaMultiplier;
-    const effectiveCreativity = office.avgCreativity * upgradeCreativityMultiplier * researchCreativityMultiplier;
-    const effectiveEfficiency = office.avgEfficiency * upgradeEfficiencyMultiplier * researchEfficiencyMultiplier;
+    const effectiveIntelligence = office.avgIntelligence
+        * upgradeAndResearchMultiplier.upgradeIntelligenceMultiplier * upgradeAndResearchMultiplier.researchIntelligenceMultiplier;
+    const effectiveCharisma = office.avgCharisma
+        * upgradeAndResearchMultiplier.upgradeCharismaMultiplier * upgradeAndResearchMultiplier.researchCharismaMultiplier;
+    const effectiveCreativity = office.avgCreativity
+        * upgradeAndResearchMultiplier.upgradeCreativityMultiplier * upgradeAndResearchMultiplier.researchCreativityMultiplier;
+    const effectiveEfficiency = office.avgEfficiency
+        * upgradeAndResearchMultiplier.upgradeEfficiencyMultiplier * upgradeAndResearchMultiplier.researchEfficiencyMultiplier;
 
     const productionBase = office.avgMorale * office.avgEnergy * 1e-4;
 
@@ -547,27 +575,10 @@ export async function calculateEmployeeStats(
         throw new Error("We need at least 4 jobs having 1 employee at the minimum");
     }
 
-    const upgradeCreativityMultiplier = getUpgradeBenefit(
-        UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS,
-        corporationUpgradeLevels[UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS]
+    const upgradeAndResearchMultiplier = calculateUpgradeAndResearchMultiplierForEmployeeStats(
+        corporationUpgradeLevels,
+        divisionResearches
     );
-    const upgradeCharismaMultiplier = getUpgradeBenefit(
-        UpgradeName.SPEECH_PROCESSOR_IMPLANTS,
-        corporationUpgradeLevels[UpgradeName.SPEECH_PROCESSOR_IMPLANTS]
-    );
-    const upgradeIntelligenceMultiplier = getUpgradeBenefit(
-        UpgradeName.NEURAL_ACCELERATORS,
-        corporationUpgradeLevels[UpgradeName.NEURAL_ACCELERATORS]
-    );
-    const upgradeEfficiencyMultiplier = getUpgradeBenefit(
-        UpgradeName.FOCUS_WIRES,
-        corporationUpgradeLevels[UpgradeName.FOCUS_WIRES]
-    );
-
-    const researchCreativityMultiplier = getResearchEmployeeCreativityMultiplier(divisionResearches);
-    const researchCharismaMultiplier = getResearchEmployeeCharismaMultiplier(divisionResearches);
-    const researchIntelligenceMultiplier = getResearchEmployeeIntelligenceMultiplier(divisionResearches);
-    const researchEfficiencyMultiplier = getResearchEmployeeEfficiencyMultiplier(divisionResearches);
 
     const productionBase = office.avgMorale * office.avgEnergy * 1e-4;
     const exp = office.totalExperience / office.numEmployees;
@@ -622,9 +633,13 @@ export async function calculateEmployeeStats(
         throw new Error(`ERROR: Cannot find hidden stats of employee. Office: ${JSON.stringify(office)}`);
     }
     return {
-        avgCreativity: solverResult.x[0] / (upgradeCreativityMultiplier * researchCreativityMultiplier),
-        avgCharisma: solverResult.x[1] / (upgradeCharismaMultiplier * researchCharismaMultiplier),
-        avgIntelligence: solverResult.x[2] / (upgradeIntelligenceMultiplier * researchIntelligenceMultiplier),
-        avgEfficiency: solverResult.x[3] / (upgradeEfficiencyMultiplier * researchEfficiencyMultiplier),
+        avgCreativity: solverResult.x[0]
+            / (upgradeAndResearchMultiplier.upgradeCreativityMultiplier * upgradeAndResearchMultiplier.researchCreativityMultiplier),
+        avgCharisma: solverResult.x[1]
+            / (upgradeAndResearchMultiplier.upgradeCharismaMultiplier * upgradeAndResearchMultiplier.researchCharismaMultiplier),
+        avgIntelligence: solverResult.x[2]
+            / (upgradeAndResearchMultiplier.upgradeIntelligenceMultiplier * upgradeAndResearchMultiplier.researchIntelligenceMultiplier),
+        avgEfficiency: solverResult.x[3]
+            / (upgradeAndResearchMultiplier.upgradeEfficiencyMultiplier * upgradeAndResearchMultiplier.researchEfficiencyMultiplier),
     };
 }

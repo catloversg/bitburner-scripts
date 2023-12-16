@@ -1,6 +1,6 @@
 import {CorpIndustryData, Division, Material, Product} from "@ns";
 import * as comlink from "/libs/comlink";
-import {isProduct, optimizeBoostMaterialQuantities} from "/corporationUtils";
+import {isProduct, Logger, optimizeBoostMaterialQuantities} from "/corporationUtils";
 import {
     calculateDivisionRawProduction,
     calculateEmployeeProductionByJobs,
@@ -16,6 +16,7 @@ import {
     getMaxAffordableUpgradeLevel,
     getMaxAffordableWarehouseLevel,
     getResearchAdvertisingMultiplier,
+    getResearchRPMultiplier,
     getResearchSalesMultiplier,
     getUpgradeBenefit,
     getUpgradeCost,
@@ -67,9 +68,10 @@ export interface OfficeBenchmarkData {
     rawProduction: number;
     maxSalesVolume: number;
     optimalPrice: number;
+    productDevelopmentProgress: number;
+    estimatedRP: number;
     productRating: number;
     productMarkup: number;
-    productDevelopmentProgress: number;
     profit: number;
 }
 
@@ -131,6 +133,7 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
 
 const awarenessMap = new Map<string, number>();
 const popularityMap = new Map<string, number>();
+const defaultLengthOfBenchmarkDataArray = 10;
 
 export class CorporationBenchmark {
     public getScriptUrl(): string {
@@ -144,10 +147,12 @@ export class CorporationBenchmark {
         currentSmartFactoriesLevel: number,
         divisionResearches: DivisionResearches,
         maxCost: number,
+        enableLogging = false,
         boostMaterialTotalSizeRatio = 0.8) {
         if (currentSmartStorageLevel < 0 || currentWarehouseLevel < 0 || currentSmartFactoriesLevel < 0) {
             throw new Error("Invalid parameter");
         }
+        const logger = new Logger(enableLogging);
         const maxSmartStorageLevel = getMaxAffordableUpgradeLevel(UpgradeName.SMART_STORAGE, currentSmartStorageLevel, maxCost);
         const maxWarehouseLevel = getMaxAffordableWarehouseLevel(currentWarehouseLevel, maxCost / 6);
         const comparator = getComparator(BenchmarkType.STORAGE_FACTORY);
@@ -160,11 +165,11 @@ export class CorporationBenchmark {
         if (maxWarehouseLevel - currentWarehouseLevel > 1000) {
             minWarehouseLevel = Math.floor((currentWarehouseLevel + maxWarehouseLevel) * 2 / 3);
         }
-        console.log("minSmartStorageLevel", minSmartStorageLevel);
-        console.log("minWarehouseLevel", minWarehouseLevel);
-        console.log("maxSmartStorageLevel", maxSmartStorageLevel);
-        console.log("maxWarehouseLevel", maxWarehouseLevel);
-        console.time("StorageAndFactory benchmark");
+        logger.log("minSmartStorageLevel", minSmartStorageLevel);
+        logger.log("minWarehouseLevel", minWarehouseLevel);
+        logger.log("maxSmartStorageLevel", maxSmartStorageLevel);
+        logger.log("maxWarehouseLevel", maxWarehouseLevel);
+        logger.time("StorageAndFactory benchmark");
         for (let smartStorageLevel = minSmartStorageLevel; smartStorageLevel <= maxSmartStorageLevel; smartStorageLevel++) {
             const upgradeSmartStorageCost = getUpgradeCost(
                 UpgradeName.SMART_STORAGE,
@@ -213,7 +218,7 @@ export class CorporationBenchmark {
                     boostMaterials: boostMaterials,
                     boostMaterialMultiplier: boostMaterialMultiplier
                 };
-                if (priorityQueue.size() < 20) {
+                if (priorityQueue.size() < defaultLengthOfBenchmarkDataArray) {
                     priorityQueue.push(dataEntry);
                 } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
                     priorityQueue.pop();
@@ -221,10 +226,10 @@ export class CorporationBenchmark {
                 }
             }
         }
-        console.timeEnd("StorageAndFactory benchmark");
+        logger.timeEnd("StorageAndFactory benchmark");
         const data: StorageFactoryBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
-            console.log(
+            logger.log(
                 `{storage:${data.smartStorageLevel}, warehouse:${data.warehouseLevel}, factory:${data.smartFactoriesLevel}, ` +
                 `totalCost:${formatNumber(data.totalCost)}, ` +
                 `warehouseSize:${formatNumber(data.warehouseSize)}, ` +
@@ -242,18 +247,20 @@ export class CorporationBenchmark {
         currentWilsonLevel: number,
         currentAdvertLevel: number,
         divisionResearches: DivisionResearches,
-        maxCost: number) {
+        maxCost: number,
+        enableLogging = false) {
         if (currentWilsonLevel < 0 || currentAdvertLevel < 0) {
             throw new Error("Invalid parameter");
         }
+        const logger = new Logger(enableLogging);
         const maxWilsonLevel = getMaxAffordableUpgradeLevel(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, maxCost);
         const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, maxCost);
-        console.log(`maxWilsonLevel: ${maxWilsonLevel}`);
-        console.log(`maxAdvertLevel: ${maxAdvertLevel}`);
+        logger.log(`maxWilsonLevel: ${maxWilsonLevel}`);
+        logger.log(`maxAdvertLevel: ${maxAdvertLevel}`);
         const researchAdvertisingMultiplier = getResearchAdvertisingMultiplier(divisionResearches);
         const comparator = getComparator(BenchmarkType.WILSON_ADVERT);
         const priorityQueue = new PriorityQueue(comparator);
-        console.time("WilsonAndAdvert benchmark");
+        logger.time("WilsonAndAdvert benchmark");
         for (let wilsonLevel = currentWilsonLevel; wilsonLevel <= maxWilsonLevel; wilsonLevel++) {
             const wilsonCost = getUpgradeCost(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, wilsonLevel);
             for (let advertLevel = currentAdvertLevel + 1; advertLevel <= maxAdvertLevel; advertLevel++) {
@@ -284,7 +291,7 @@ export class CorporationBenchmark {
                     advertisingFactor: advertisingFactor,
                     costPerAdvertisingFactor: totalCost / advertisingFactor
                 };
-                if (priorityQueue.size() < 20) {
+                if (priorityQueue.size() < defaultLengthOfBenchmarkDataArray) {
                     priorityQueue.push(dataEntry);
                 } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
                     priorityQueue.pop();
@@ -292,10 +299,10 @@ export class CorporationBenchmark {
                 }
             }
         }
-        console.timeEnd("WilsonAndAdvert benchmark");
+        logger.timeEnd("WilsonAndAdvert benchmark");
         const data: WilsonAdvertBenchmarkData[] = priorityQueue.toArray();
         data.forEach(data => {
-            console.log(
+            logger.log(
                 `{wilson:${data.wilsonLevel}, advert:${data.advertLevel}, ` +
                 `totalCost:${formatNumber(data.totalCost)}, ` +
                 `advertisingFactor:${formatNumber(data.advertisingFactor)}, ` +
@@ -330,9 +337,11 @@ export class CorporationBenchmark {
         engineer: number,
         management: number,
         business: number,
+        rnd: number,
         salesBotUpgradeBenefit: number,
-        researchSalesMultiplier: number
-    ): Promise<OfficeBenchmarkData | null> {
+        researchSalesMultiplier: number,
+        enableLogging = false
+    ): Promise<OfficeBenchmarkData> {
         const itemIsProduct = isProduct(item);
         const employeesProduction = calculateEmployeeProductionByJobs(
             {
@@ -348,7 +357,7 @@ export class CorporationBenchmark {
                     engineer: engineer,
                     business: business,
                     management: management,
-                    researchAndDevelopment: 0,
+                    researchAndDevelopment: rnd,
                     intern: 0,
                     unassigned: 0
                 }
@@ -368,11 +377,12 @@ export class CorporationBenchmark {
             customData.divisionResearches
         );
 
+        let productDevelopmentProgress = 0;
+        let estimatedRP = 0;
         let productRating = 0;
         let productMarkup = 0;
         let demand: number;
         let competition: number;
-        let productDevelopmentProgress = 0;
 
         let itemMultiplier: number;
         let markupLimit: number;
@@ -389,6 +399,39 @@ export class CorporationBenchmark {
                     + Math.pow(employeesProduction.operationsProduction, 0.2)
                 )
                 * managementFactor;
+
+            // Estimate RP gain
+            const cycles = 100 / productDevelopmentProgress;
+            const employeesProductionInSupportCities = calculateEmployeeProductionByJobs(
+                {
+                    // Reuse employees' stats of main office. This is fine because we only calculate the estimated value,
+                    // not the exact value.
+                    avgIntelligence: customData.office.avgIntelligence,
+                    avgCharisma: customData.office.avgCharisma,
+                    avgCreativity: customData.office.avgCreativity,
+                    avgEfficiency: customData.office.avgEfficiency,
+                    avgMorale: customData.office.avgMorale,
+                    avgEnergy: customData.office.avgEnergy,
+                    totalExperience: customData.office.totalExperience,
+                    employeeJobs: {
+                        operations: 1,
+                        engineer: 1,
+                        business: 1,
+                        management: 1,
+                        researchAndDevelopment: operations + engineer + business + management - 4,
+                        intern: 0,
+                        unassigned: 0
+                    }
+                },
+                customData.corporationUpgradeLevels,
+                customData.divisionResearches
+            );
+            const researchPointGainPerCycle =
+                5 // 5 support cities
+                * 4 * 0.004 * Math.pow(employeesProductionInSupportCities.researchAndDevelopmentProduction, 0.5)
+                * getUpgradeBenefit(UpgradeName.PROJECT_INSIGHT, customData.corporationUpgradeLevels[UpgradeName.PROJECT_INSIGHT])
+                * getResearchRPMultiplier(customData.divisionResearches);
+            estimatedRP = division.researchPoints + researchPointGainPerCycle * cycles;
 
             // Calculate product.stats
             const productStats: Record<string, number> = {
@@ -414,7 +457,7 @@ export class CorporationBenchmark {
             const businessRatio = employeesProduction.businessProduction / totalProduction;
             // Reuse designInvestment of latest product
             const designInvestmentMultiplier = 1 + (Math.pow(item.designInvestment, 0.1)) / 100;
-            const scienceMultiplier = 1 + (Math.pow(division.researchPoints, industryData.scienceFactor!)) / 800;
+            const scienceMultiplier = 1 + (Math.pow(estimatedRP, industryData.scienceFactor!)) / 800;
             const balanceMultiplier =
                 1.2 * engineerRatio
                 + 0.9 * managementRatio
@@ -523,19 +566,15 @@ export class CorporationBenchmark {
             salesBotUpgradeBenefit *
             researchSalesMultiplier;
 
-        if (itemIsProduct) {
-            if (maxSalesVolume < rawProduction) {
-                // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
-                return null;
-            }
-        } else {
+        let marginErrorRatio = 1;
+        if (!itemIsProduct) {
             // Add margin error in case of output materials
-            if (maxSalesVolume < rawProduction * 0.9) {
-                // console.log(`operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
-                // console.log(`rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
-                return null;
-            }
+            marginErrorRatio = 0.9;
+        }
+        if (maxSalesVolume < rawProduction * marginErrorRatio) {
+            const logger = new Logger(enableLogging);
+            logger.warn(`WARNING: operations: ${operations}, engineer: ${engineer}, business: ${business}, management: ${management}`);
+            logger.warn(`WARNING: rawProduction: ${rawProduction}, maxSalesVolume: ${maxSalesVolume}`);
         }
 
         const optimalPrice = markupLimit / Math.sqrt(rawProduction / maxSalesVolume) + marketPrice;
@@ -551,9 +590,10 @@ export class CorporationBenchmark {
             rawProduction: rawProduction,
             maxSalesVolume: maxSalesVolume,
             optimalPrice: optimalPrice,
+            productDevelopmentProgress: productDevelopmentProgress,
+            estimatedRP: estimatedRP,
             productRating: productRating,
             productMarkup: productMarkup,
-            productDevelopmentProgress: productDevelopmentProgress,
             profit: profit,
         };
     }
@@ -565,11 +605,13 @@ export class CorporationBenchmark {
      * @param operationsJob
      * @param engineerJob
      * @param managementJob
-     * @param maxTotalEmployees Does not count RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
+     * @param rndJob
+     * @param maxTotalEmployees Does not include RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
      * total employees is 9.
      * @param item
      * @param customData
      * @param sortType
+     * @param enableLogging
      */
     public async optimizeOffice(
         division: Division,
@@ -586,6 +628,7 @@ export class CorporationBenchmark {
             min: number;
             max: number;
         },
+        rndJob: number,
         maxTotalEmployees: number,
         item: Material | Product,
         customData: {
@@ -602,7 +645,8 @@ export class CorporationBenchmark {
             divisionResearches: DivisionResearches,
             step?: number;
         },
-        sortType: string
+        sortType: string,
+        enableLogging = false
     ): Promise<{ step: number; data: OfficeBenchmarkData[]; }> {
         const salesBotUpgradeBenefit = getUpgradeBenefit(
             UpgradeName.ABC_SALES_BOTS,
@@ -639,13 +683,12 @@ export class CorporationBenchmark {
                         engineer,
                         management,
                         business,
+                        rndJob,
                         salesBotUpgradeBenefit,
-                        researchSalesMultiplier
+                        researchSalesMultiplier,
+                        enableLogging
                     );
-                    if (!dataEntry) {
-                        continue;
-                    }
-                    if (priorityQueue.size() < 20) {
+                    if (priorityQueue.size() < defaultLengthOfBenchmarkDataArray) {
                         priorityQueue.push(dataEntry);
                     } else if (comparator(dataEntry, priorityQueue.front()) > 0) {
                         priorityQueue.pop();

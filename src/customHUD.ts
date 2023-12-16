@@ -5,7 +5,9 @@ import {parseNumber} from "/libs/utils";
 import {CityName, EmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
 import {getRecordEntries, PartialRecord} from "/libs/Record";
 import {CorpUpgradesData} from "/data/CorpUpgradesData";
+import {clearPurchaseOrders, clearStorage, DivisionName, hasDivision} from "/corporationUtils";
 
+let ns: NS;
 let nsx: NetscriptExtension;
 let doc: Document;
 
@@ -473,18 +475,14 @@ function createTestingTool() {
         });
         doc.getElementById("btn-clear-storage")!.addEventListener("click", function () {
             const division = getDivision(getDivisionName());
-            const warehouses = Object.values(division.warehouses);
-            for (const warehouse of warehouses) {
-                const materials = Object.values(warehouse.materials);
-                for (const material of materials) {
-                    material.stored = 0;
-                }
-            }
+            clearPurchaseOrders(ns);
+            clearStorage(ns, division.name).then();
         });
     }
 }
 
-export async function main(ns: NS): Promise<void> {
+export async function main(nsContext: NS): Promise<void> {
+    ns = nsContext;
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
 
@@ -590,18 +588,22 @@ export async function main(ns: NS): Promise<void> {
                     // if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
                     //     ns.toast("Failed to run corporation.js --round2");
                     // }
-                    if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
-                        ns.toast("Failed to run corporation.js --round3");
-                    }
-                    // if (!hasDivision(ns, DivisionName.CHEMICAL)) {
-                    //     if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
-                    //         ns.toast("Failed to run corporation.js --round2");
-                    //     }
-                    // } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
-                    //     if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
-                    //         ns.toast("Failed to run corporation.js --round3");
-                    //     }
+                    // if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
+                    //     ns.toast("Failed to run corporation.js --round3");
                     // }
+                    if (!hasDivision(ns, DivisionName.CHEMICAL)) {
+                        if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
+                            ns.toast("Failed to run corporation.js --round2");
+                        }
+                    } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
+                        if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
+                            ns.toast("Failed to run corporation.js --round3");
+                        }
+                    } else {
+                        if (ns.exec("corporation.js", "home", 1, "--improveAllDivisions") === 0) {
+                            ns.toast("Failed to run corporation.js --improveAllDivisions");
+                        }
+                    }
                     runCorpRound = false;
                 }
                 if (runCorpTest) {
@@ -639,6 +641,6 @@ export async function main(ns: NS): Promise<void> {
         } catch (ex: unknown) {
             ns.print(`HUD error: ${JSON.stringify(ex)}`);
         }
-        await ns.sleep(1000);
+        await ns.asleep(1000);
     }
 }

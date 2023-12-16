@@ -2,8 +2,8 @@ import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
 import {BenchmarkType, CorporationBenchmark, getComparator, OfficeBenchmarkData} from "/corporationBenchmark";
-import {calculateEmployeeStats, CityName, formatNumber} from "/corporationFormulas";
-import {getCorporationUpgradeLevels, getDivisionResearches, isProduct} from "/corporationUtils";
+import {calculateEmployeeStats, CityName, EmployeePosition, formatNumber, ResearchName} from "/corporationFormulas";
+import {getCorporationUpgradeLevels, getDivisionResearches, isProduct, Logger} from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
 import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
 
@@ -57,24 +57,20 @@ async function splitWorkload(
         max: number;
     },
     workload: Workload,
-    enableLogging = true) {
+    logger: Logger) {
     const numberOfThreads = globalThis.navigator?.hardwareConcurrency ?? 8;
     const workers: Worker[] = [];
     const promises: Promise<void>[] = [];
     let current = operationsJob.min;
     const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
-    if (enableLogging) {
-        console.time("Office benchmark execution time");
-    }
+    logger.time("Office benchmark execution time");
     for (let i = 0; i < numberOfThreads; ++i) {
         const from = current;
         if (from > operationsJob.max) {
             break;
         }
         const to = Math.min(current + step, operationsJob.max);
-        if (enableLogging) {
-            console.log(`from: ${from}, to: ${to}`);
-        }
+        logger.log(`from: ${from}, to: ${to}`);
         const worker = new Worker(workerModuleUrl, {type: "module"});
         workers.push(worker);
         const workerWrapper = comlink.wrap<CorporationBenchmark>(worker);
@@ -104,9 +100,7 @@ async function splitWorkload(
         });
     });
     await Promise.allSettled(promises);
-    if (enableLogging) {
-        console.timeLog("Office benchmark execution time");
-    }
+    logger.timeLog("Office benchmark execution time");
 }
 
 /**
@@ -131,9 +125,10 @@ export async function optimizeOffice(
     item: Material | Product,
     sortType: "rawProduction" | "optimalPrice" | "profit" | "progress" | "profit_progress",
     maxRerun = 1,
-    enableLogging = true) {
+    enableLogging = false) {
     await validateWorkerModuleUrl(ns);
 
+    const logger = new Logger(enableLogging);
     const data: OfficeBenchmarkData[] = [];
     const office = ns.corporation.getOffice(division.name, city);
 
@@ -142,9 +137,13 @@ export async function optimizeOffice(
     const corporationUpgradeLevels = getCorporationUpgradeLevels(ns);
     const divisionResearches = getDivisionResearches(ns, division.name);
 
+    if (maxTotalEmployees < 4) {
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxTotalEmployees}`);
+    }
+
     const numberOfNewEmployees =
         maxTotalEmployees
-        + office.employeeJobs["Research & Development"]
+        + office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT]
         - office.numEmployees;
     if (numberOfNewEmployees < 0) {
         throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxTotalEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
@@ -166,7 +165,7 @@ export async function optimizeOffice(
             divisionResearches
         );
     } catch (e) {
-        console.warn(e);
+        logger.warn(e);
         avgStats = {
             avgIntelligence: 75,
             avgCharisma: 75,
@@ -178,8 +177,8 @@ export async function optimizeOffice(
         // avgMorale = (avgMorale * office.numEmployees + 75) / (office.numEmployees + 1);
         // avgEnergy = (avgEnergy * office.numEmployees + 75) / (office.numEmployees + 1);
         // Assume that we always maintain max morale/energy
-        avgMorale = 100;
-        avgEnergy = 100;
+        avgMorale = divisionResearches[ResearchName.STIMU] ? 110 : 100;
+        avgEnergy = divisionResearches[ResearchName.GO_JUICE] ? 110 : 100;
         avgStats.avgIntelligence = (avgStats.avgIntelligence * office.numEmployees + 75) / (office.numEmployees + 1);
         avgStats.avgCharisma = (avgStats.avgCharisma * office.numEmployees + 75) / (office.numEmployees + 1);
         avgStats.avgCreativity = (avgStats.avgCreativity * office.numEmployees + 75) / (office.numEmployees + 1);
@@ -199,11 +198,6 @@ export async function optimizeOffice(
         corporationUpgradeLevels: corporationUpgradeLevels,
         divisionResearches: divisionResearches
     };
-    const printLog = (...data: unknown[]) => {
-        if (enableLogging) {
-            console.log(...data);
-        }
-    };
     const printDataEntryLog = (dataEntry: OfficeBenchmarkData) => {
         let message = `{operations:${dataEntry.operations}, engineer:${dataEntry.engineer}, `
             + `business:${dataEntry.business}, management:${dataEntry.management}, `;
@@ -215,14 +209,15 @@ export async function optimizeOffice(
             `profit:${dataEntry.profit.toExponential(5)}, ` +
             `salesEfficiency: ${Math.min(dataEntry.maxSalesVolume / dataEntry.rawProduction, 1).toFixed(3)}`;
         if (isProduct(item)) {
+            message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}, `;
+            message += `, estimatedRP: ${formatNumber(dataEntry.estimatedRP)}, `;
             message += `, rating: ${formatNumber(dataEntry.productRating)}, `;
             message += `, markup: ${formatNumber(dataEntry.productMarkup)}, `;
-            message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}, `;
             message += `, profit_progress: ${(dataEntry.profit * dataEntry.productDevelopmentProgress).toExponential(5)}}`;
         } else {
             message += "}";
         }
-        printLog(message);
+        logger.log(message);
     };
 
     const min = 1;
@@ -261,6 +256,7 @@ export async function optimizeOffice(
                 min: managementJob.min,
                 max: managementJob.max
             },
+            office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT],
             maxTotalEmployees,
             item,
             customData,
@@ -270,7 +266,7 @@ export async function optimizeOffice(
             data.push(...result.data);
             worker.terminate();
         }).catch(reason => {
-            console.error(reason);
+            logger.error(reason);
             error = reason;
         });
     };
@@ -289,7 +285,7 @@ export async function optimizeOffice(
             max: max
         },
         workload,
-        enableLogging
+        logger
     );
     if (error) {
         throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
@@ -298,16 +294,16 @@ export async function optimizeOffice(
 
     let count = 0;
     while (true) {
-        printLog(`maxUsedStep: ${maxUsedStep}`);
+        logger.log(`maxUsedStep: ${maxUsedStep}`);
         if (count >= maxRerun) {
             break;
         }
         if (maxUsedStep === 1) {
             break;
         }
-        printLog("Rerun benchmark to get more accurate data");
+        logger.log("Rerun benchmark to get more accurate data");
         const currentBestResult = data[data.length - 1];
-        printLog("Current best result:");
+        logger.log("Current best result:");
         printDataEntryLog(currentBestResult);
         await splitWorkload(
             ns,
@@ -324,7 +320,7 @@ export async function optimizeOffice(
                 max: currentBestResult.management + maxUsedStep
             },
             workload,
-            enableLogging
+            logger
         );
         if (error) {
             throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
@@ -334,8 +330,8 @@ export async function optimizeOffice(
     }
 
     let dataForLogging = data;
-    if (dataForLogging.length > 20) {
-        dataForLogging = dataForLogging.slice(-20);
+    if (dataForLogging.length > 10) {
+        dataForLogging = dataForLogging.slice(-10);
     }
     dataForLogging.forEach(dataEntry => {
         printDataEntryLog(dataEntry);

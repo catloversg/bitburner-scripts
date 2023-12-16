@@ -5,15 +5,15 @@ import {
     NetscriptFlagsSchema,
     parseAutoCompleteDataFromDefaultConfig
 } from "/libs/NetscriptExtension";
-import {getRecordKeys} from "/libs/Record";
 import {
     buyOptimalAmountOfInputMaterials,
     buyTeaAndThrowPartyForAllDivisions,
+    clearPurchaseOrders,
     loopAllDivisionsAndCities,
     setOptimalSellingPrice,
     validateProductMarkupMap
 } from "/corporationUtils";
-import {UnlockName} from "/corporationFormulas";
+import {CorpState, UnlockName} from "/corporationFormulas";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -44,19 +44,9 @@ export async function main(nsContext: NS): Promise<void> {
     ns.clearLog();
 
     if (config.maintainCorporation === true && ns.corporation.hasCorporation()) {
-        // Clear purchase when script exits
+        // Clear purchase orders when script exits
         ns.atExit(() => {
-            loopAllDivisionsAndCities(ns, (divisionName, city) => {
-                if (ns.corporation.getWarehouse(divisionName, city).smartSupplyEnabled) {
-                    return;
-                }
-                const division = ns.corporation.getDivision(divisionName);
-                const industrialData = ns.corporation.getIndustryData(division.type);
-                for (const materialName of getRecordKeys(industrialData.requiredMaterials)) {
-                    // Clear purchase
-                    ns.corporation.buyMaterial(divisionName, city, materialName, 0);
-                }
-            });
+            clearPurchaseOrders(ns);
         });
         let smartSupplyHasBeenEnabledEverywhere = false;
         const warehouseCongestionData = new Map<string, number>();
@@ -78,13 +68,24 @@ export async function main(nsContext: NS): Promise<void> {
                 }
             }
 
-            // Remove nonexistent product in productMarkupMap
-            if (ns.corporation.getCorporation().nextState === "START") {
-                validateProductMarkupMap(ns);
-            }
             // Market TA2
             await setOptimalSellingPrice(ns);
 
+            if (ns.corporation.getCorporation().prevState === CorpState.START) {
+                loopAllDivisionsAndCities(ns, (divisionName, city) => {
+                    const office = ns.corporation.getOffice(divisionName, city);
+                    // Check for Unassigned employees
+                    const unassignedEmployees = office.employeeJobs.Unassigned;
+                    if (unassignedEmployees > 0) {
+                        ns.toast(
+                            `WARNING: There are ${unassignedEmployees} unassigned employees in division ${divisionName}`,
+                            "warning"
+                        );
+                    }
+                });
+                // Remove nonexistent product in productMarkupMap
+                validateProductMarkupMap(ns);
+            }
             await ns.corporation.nextUpdate();
         }
     }
