@@ -11,6 +11,7 @@ import {
     clearPurchaseOrders,
     loopAllDivisionsAndCities,
     setOptimalSellingPrice,
+    showWarning,
     validateProductMarkupMap
 } from "/corporationUtils";
 import {CorpState, UnlockName} from "/corporationFormulas";
@@ -77,9 +78,9 @@ export async function main(nsContext: NS): Promise<void> {
                     // Check for Unassigned employees
                     const unassignedEmployees = office.employeeJobs.Unassigned;
                     if (unassignedEmployees > 0) {
-                        ns.toast(
-                            `WARNING: There are ${unassignedEmployees} unassigned employees in division ${divisionName}`,
-                            "warning"
+                        showWarning(
+                            ns,
+                            `WARNING: There are ${unassignedEmployees} unassigned employees in division ${divisionName}`
                         );
                     }
                 });

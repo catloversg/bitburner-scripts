@@ -42,6 +42,7 @@ import {
     Logger,
     researchPrioritiesForProductDivision,
     researchPrioritiesForSupportDivision,
+    showWarning,
     stockMaterials,
     upgradeOffices,
     upgradeWarehouse,
@@ -477,9 +478,18 @@ async function improveAllDivisions() {
         const corporation = ns.corporation.getCorporation();
         const profit = corporation.revenue - corporation.expenses;
         const promises: Promise<void>[] = [];
-        console.log(`State: ${corporation.prevState}`, `, count: ${cycleCount}`);
+        console.log(`cycleCount: ${cycleCount}`);
 
         await buyResearch();
+
+        // Buy Wilson ASAP if we can afford it with the last cycle's profit. Budget for Wilson and Advert is just part of
+        // current funds, it's usually too low for our benchmark to calculate the optimal combination. The benchmark is
+        // most suitable for big-budget situation, like after accepting investment offer.
+        const currentWilsonLevel = ns.corporation.getUpgradeLevel(UpgradeName.WILSON_ANALYTICS);
+        const maxWilsonLevel = getMaxAffordableUpgradeLevel(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, profit);
+        if (maxWilsonLevel > currentWilsonLevel) {
+            buyUpgrade(ns, UpgradeName.WILSON_ANALYTICS, maxWilsonLevel);
+        }
 
         if (cycleCount % 10 === 0 || corporation.funds > profit * 1000) {
             await improveProductDivision(
@@ -713,11 +723,10 @@ async function improveSupportDivision(
                     enableLogging
                 );
                 if (dataArray.length === 0) {
-                    ns.toast(
+                    showWarning(
+                        ns,
                         `Cannot calculate optimal office setup. Division: ${division.name}, `
-                        + `maxTotalEmployees: ${maxOfficeSize - minRnDEmployee}`,
-                        "warning",
-                        5000
+                        + `maxTotalEmployees: ${maxOfficeSize - minRnDEmployee}`
                     );
                     const operations = Math.floor(maxOfficeSize / 5);
                     const engineer = Math.floor(maxOfficeSize / 5);

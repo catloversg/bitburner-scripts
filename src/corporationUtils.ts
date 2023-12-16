@@ -52,8 +52,8 @@ export const boostMaterials = [
     MaterialName.ROBOTS,
 ];
 
-const costMultiplierForEmployeeStatsResearch = 2;
-const costMultiplierForProductionResearch = 5;
+const costMultiplierForEmployeeStatsResearch = 5;
+const costMultiplierForProductionResearch = 10;
 
 export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
     {research: ResearchName.AUTO_DRUG, costMultiplier: costMultiplierForEmployeeStatsResearch},
@@ -144,6 +144,12 @@ export class Logger {
             console.timeLog(label);
         }
     }
+}
+
+export function showWarning(ns: NS, warningMessage: string) {
+    console.warn(warningMessage);
+    ns.print(warningMessage);
+    ns.toast(warningMessage, "warning");
 }
 
 export function loopAllDivisionsAndCities(ns: NS, callback: (divisionName: string, city: CityName) => void) {
@@ -423,7 +429,14 @@ export async function stockMaterials(
     ns.atExit(() => {
         clearPurchaseOrders(ns, false);
     });
+    let count = 0;
     while (true) {
+        if (count === 3) {
+            const warningMessage = `It takes too many cycles to stock up on materials. Division: ${divisionName}, `
+                + `orders: ${JSON.stringify(orders)}`;
+            showWarning(ns, warningMessage);
+            break;
+        }
         let finish = true;
         for (const order of orders) {
             for (const material of order.materials) {
@@ -450,7 +463,8 @@ export async function stockMaterials(
         if (finish) {
             break;
         }
-        await ns.corporation.nextUpdate();
+        await waitUntilAfterStateHappens(ns, CorpState.PURCHASE);
+        ++count;
     }
 }
 
@@ -689,17 +703,13 @@ function detectWarehouseCongestion(
         warehouseCongestionData.set(warehouseCongestionDataKey, numberOfCongestionTimes);
         break;
     }
-    // If that happens more than 5 times, we clear all input materials
+    // If that happens more than 5 times, the warehouse is very likely congested.
     if (warehouseCongestionData.get(warehouseCongestionDataKey)! > 5) {
         isWarehouseCongested = true;
     }
-    // Notify about this situation by showing alert popup.
-    // We need to mitigate this situation. Discarding stored input material is the simplest solution. This is not
-    // needed in our case because our logic of calculating required quantity takes into account of free space and
-    // stored units. However, some simple versions of Smart Supply script cannot do that. This mitigation can be
-    // useful in those cases. I only leave this code here for reference purposes.
+    // We need to mitigate this situation. Discarding stored input material is the simplest solution.
     if (isWarehouseCongested) {
-        ns.toast(`Warehouse may be congested. Division: ${division.name}, city: ${city}.`, "warning");
+        showWarning(ns, `Warehouse may be congested. Division: ${division.name}, city: ${city}.`);
         for (const [materialName] of requiredMaterials) {
             // Clear purchase
             ns.corporation.buyMaterial(division.name, city, materialName, 0);
@@ -836,9 +846,6 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
             ns.corporation.buyMaterial(divisionName, city, materialName, inputMaterialData.requiredQuantity / 10);
         }
     });
-    if (ns.corporation.getCorporation().nextState !== "PURCHASE") {
-        ns.toast("Custom Smart Supply script runs too slowly", "warning");
-    }
 }
 
 /**
@@ -949,8 +956,8 @@ export function developNewProduct(
     let hasDevelopingProduct = false;
     let bestProduct = null;
     let worstProduct = null;
-    let maxProductRating = Number.MIN_SAFE_INTEGER;
-    let minProductRating = Number.MAX_SAFE_INTEGER;
+    let maxProductRating = Number.MIN_VALUE;
+    let minProductRating = Number.MAX_VALUE;
     for (const productName of products) {
         const product = ns.corporation.getProduct(divisionName, mainProductDevelopmentCity, productName);
         //Check if there is any developing product
@@ -987,10 +994,9 @@ export function developNewProduct(
             const warningMessage = `Budget for new product is too low: ${ns.formatNumber(productDevelopmentBudget)}. `
                 + `Current best product's budget: ${ns.formatNumber(bestProductBudget)}`;
             console.warn(warningMessage);
-            ns.toast(
-                warningMessage,
-                "warning",
-                5000
+            showWarning(
+                ns,
+                warningMessage
             );
         }
     }
@@ -1277,9 +1283,16 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio = 0.1)
     let reservedSpaceRatio = 0.15;
     if (industryData.makesProducts) {
         reservedSpaceRatio = 0.05;
+        ratio = 0.2;
     }
+    let count = 0;
     while (true) {
         await waitUntilAfterStateHappens(ns, CorpState.PRODUCTION);
+        if (count === 15) {
+            const warningMessage = `It takes too many cycles to buy boost materials. Division: ${division.name}.`;
+            showWarning(ns, warningMessage);
+            break;
+        }
         let finish = true;
         const orders = [];
         for (const city of cities) {
@@ -1320,6 +1333,7 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio = 0.1)
             division.name,
             orders
         );
+        ++count;
     }
 }
 
