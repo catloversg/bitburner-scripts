@@ -218,11 +218,11 @@ export function getDivisionProductionMultiplier(industryData: CorpIndustryData, 
     return Math.max(Math.pow(cityMultiplier, 0.73), 1) * 6;
 }
 
-function calculateGenericUpgradeCost(basePrice: number, priceMultiplier: number, fromLevel: number, toLevel: number): number {
+function getGenericUpgradeCost(basePrice: number, priceMultiplier: number, fromLevel: number, toLevel: number): number {
     return basePrice * ((Math.pow(priceMultiplier, toLevel) - Math.pow(priceMultiplier, fromLevel)) / (priceMultiplier - 1));
 }
 
-function calculateGenericMaxAffordableUpgradeLevel(basePrice: number, priceMultiplier: number, fromLevel: number, maxCost: number): number {
+function getGenericMaxAffordableUpgradeLevel(basePrice: number, priceMultiplier: number, fromLevel: number, maxCost: number): number {
     return Math.floor(
         Math.log(
             maxCost * (priceMultiplier - 1) / basePrice + Math.pow(priceMultiplier, fromLevel)
@@ -236,7 +236,7 @@ export function getUpgradeCost(upgradeName: CorpUpgradeName, fromLevel: number, 
     if (!upgradeData) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
-    return calculateGenericUpgradeCost(upgradeData.basePrice, upgradeData.priceMult, fromLevel, toLevel);
+    return getGenericUpgradeCost(upgradeData.basePrice, upgradeData.priceMult, fromLevel, toLevel);
 }
 
 export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromLevel: number, maxCost: number): number {
@@ -244,7 +244,7 @@ export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromL
     if (!upgradeData) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
     }
-    return calculateGenericMaxAffordableUpgradeLevel(upgradeData.basePrice, upgradeData.priceMult, fromLevel, maxCost);
+    return getGenericMaxAffordableUpgradeLevel(upgradeData.basePrice, upgradeData.priceMult, fromLevel, maxCost);
 }
 
 /**
@@ -294,19 +294,19 @@ export function getWarehouseSize(smartStorageLevel: number, warehouseLevel: numb
 }
 
 export function getOfficeUpgradeCost(fromSize: number, toSize: number): number {
-    return calculateGenericUpgradeCost(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), Math.ceil(toSize / 3));
+    return getGenericUpgradeCost(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), Math.ceil(toSize / 3));
 }
 
 export function getMaxAffordableOfficeSize(fromSize: number, maxCost: number): number {
-    return 3 * calculateGenericMaxAffordableUpgradeLevel(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), maxCost);
+    return 3 * getGenericMaxAffordableUpgradeLevel(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), maxCost);
 }
 
 export function getAdVertCost(fromLevel: number, toLevel: number): number {
-    return calculateGenericUpgradeCost(advertUpgradeBasePrice, 1.06, fromLevel, toLevel);
+    return getGenericUpgradeCost(advertUpgradeBasePrice, 1.06, fromLevel, toLevel);
 }
 
 export function getMaxAffordableAdVertLevel(fromLevel: number, maxCost: number): number {
-    return calculateGenericMaxAffordableUpgradeLevel(advertUpgradeBasePrice, 1.06, fromLevel, maxCost);
+    return getGenericMaxAffordableUpgradeLevel(advertUpgradeBasePrice, 1.06, fromLevel, maxCost);
 }
 
 export function getResearchMultiplier(divisionResearches: DivisionResearches, researchDataKey: keyof typeof CorpResearchesData[string]): number {
@@ -372,7 +372,7 @@ export function getResearchEmployeeEfficiencyMultiplier(divisionResearches: Divi
  * has diminishing returns, but never loses its effectiveness as you continue
  * to raise it.
  */
-function calculateEffectWithFactors(n: number, expFac: number, linearFac: number): number {
+function getEffectWithFactors(n: number, expFac: number, linearFac: number): number {
     if (expFac <= 0 || expFac >= 1) {
         console.warn(`Exponential factor is ${expFac}. This is not an intended value for it`);
     }
@@ -385,7 +385,7 @@ function calculateEffectWithFactors(n: number, expFac: number, linearFac: number
 // src\Corporation\Division.ts
 // Return a factor based on the office's Business employees that affects sales
 export function getBusinessFactor(businessProduction: number): number {
-    return calculateEffectWithFactors(1 + businessProduction, 0.26, 10e3);
+    return getEffectWithFactors(1 + businessProduction, 0.26, 10e3);
 }
 
 // src\Corporation\Division.ts
@@ -411,7 +411,7 @@ export function getMarketFactor(demand: number, competition: number): number {
     return Math.max(0.1, (demand * (100 - competition)) / 100);
 }
 
-export function calculateDivisionRawProduction(
+export function getDivisionRawProduction(
     isProduct: boolean,
     employeesProduction: {
         operationsProduction: number;
@@ -452,7 +452,7 @@ export function calculateDivisionRawProduction(
     return officeMultiplier * divisionProductionMultiplier * upgradeMultiplier * researchMultiplier;
 }
 
-function calculateUpgradeAndResearchMultiplierForEmployeeStats(
+function getUpgradeAndResearchMultiplierForEmployeeStats(
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches) {
     return {
@@ -479,7 +479,7 @@ function calculateUpgradeAndResearchMultiplierForEmployeeStats(
     };
 }
 
-export function calculateEmployeeProductionByJobs(
+export function getEmployeeProductionByJobs(
     office: {
         avgIntelligence: number;
         avgCharisma: number;
@@ -501,7 +501,7 @@ export function calculateEmployeeProductionByJobs(
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches
 ) {
-    const upgradeAndResearchMultiplier = calculateUpgradeAndResearchMultiplierForEmployeeStats(
+    const upgradeAndResearchMultiplier = getUpgradeAndResearchMultiplierForEmployeeStats(
         corporationUpgradeLevels,
         divisionResearches
     );
@@ -575,7 +575,7 @@ export async function calculateEmployeeStats(
         throw new Error("We need at least 4 jobs having 1 employee at the minimum");
     }
 
-    const upgradeAndResearchMultiplier = calculateUpgradeAndResearchMultiplierForEmployeeStats(
+    const upgradeAndResearchMultiplier = getUpgradeAndResearchMultiplierForEmployeeStats(
         corporationUpgradeLevels,
         divisionResearches
     );

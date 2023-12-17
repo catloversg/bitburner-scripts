@@ -1,9 +1,9 @@
 import {CorpIndustryData, Division, Material, Product} from "@ns";
 import * as comlink from "/libs/comlink";
-import {isProduct, Logger, optimizeBoostMaterialQuantities} from "/corporationUtils";
+import {isProduct, Logger, getOptimalBoostMaterialQuantities} from "/corporationUtils";
 import {
-    calculateDivisionRawProduction,
-    calculateEmployeeProductionByJobs,
+    getDivisionRawProduction,
+    getEmployeeProductionByJobs,
     CorporationUpgradeLevels,
     DivisionResearches,
     formatNumber,
@@ -189,7 +189,7 @@ export class CorporationBenchmark {
                     warehouseLevel,
                     divisionResearches
                 );
-                const boostMaterials = optimizeBoostMaterialQuantities(industryData, warehouseSize * boostMaterialTotalSizeRatio);
+                const boostMaterials = getOptimalBoostMaterialQuantities(industryData, warehouseSize * boostMaterialTotalSizeRatio);
                 const boostMaterialMultiplier = getDivisionProductionMultiplier(industryData, boostMaterials);
                 const budgetForSmartFactoriesUpgrade = maxCost - (upgradeSmartStorageCost + upgradeWarehouseCost);
                 const maxAffordableSmartFactoriesLevel = getMaxAffordableUpgradeLevel(
@@ -343,7 +343,7 @@ export class CorporationBenchmark {
         enableLogging = false
     ): Promise<OfficeBenchmarkData> {
         const itemIsProduct = isProduct(item);
-        const employeesProduction = calculateEmployeeProductionByJobs(
+        const employeesProduction = getEmployeeProductionByJobs(
             {
                 avgIntelligence: customData.office.avgIntelligence,
                 avgCharisma: customData.office.avgCharisma,
@@ -365,7 +365,7 @@ export class CorporationBenchmark {
             customData.corporationUpgradeLevels,
             customData.divisionResearches
         );
-        const rawProduction = calculateDivisionRawProduction(
+        const rawProduction = getDivisionRawProduction(
             itemIsProduct,
             {
                 operationsProduction: employeesProduction.operationsProduction,
@@ -402,7 +402,7 @@ export class CorporationBenchmark {
 
             // Estimate RP gain
             const cycles = 100 / productDevelopmentProgress;
-            const employeesProductionInSupportCities = calculateEmployeeProductionByJobs(
+            const employeesProductionInSupportCities = getEmployeeProductionByJobs(
                 {
                     // Reuse employees' stats of main office. This is fine because we only calculate the estimated value,
                     // not the exact value.

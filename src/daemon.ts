@@ -10,7 +10,7 @@ import {
     buyTeaAndThrowPartyForAllDivisions,
     clearPurchaseOrders,
     loopAllDivisionsAndCities,
-    setOptimalSellingPrice,
+    setOptimalSellingPriceForEverything,
     showWarning,
     validateProductMarkupMap
 } from "/corporationUtils";
@@ -70,7 +70,7 @@ export async function main(nsContext: NS): Promise<void> {
             }
 
             // Market TA2
-            await setOptimalSellingPrice(ns);
+            await setOptimalSellingPriceForEverything(ns);
 
             if (ns.corporation.getCorporation().prevState === CorpState.START) {
                 loopAllDivisionsAndCities(ns, (divisionName, city) => {

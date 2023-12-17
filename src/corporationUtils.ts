@@ -3,7 +3,6 @@ import {getRecordEntries, getRecordKeys, PartialRecord} from "/libs/Record";
 import {parseNumber} from "/libs/utils";
 import {Ceres} from "/libs/Ceres";
 import {
-    calculateDivisionRawProduction,
     CeresSolverResult,
     CityName,
     CorporationUpgradeLevels,
@@ -13,6 +12,7 @@ import {
     ExportRoute,
     getAdvertisingFactors,
     getBusinessFactor,
+    getDivisionRawProduction,
     getMarketFactor,
     getResearchRPMultiplier,
     getResearchSalesMultiplier,
@@ -561,41 +561,41 @@ export async function initDivision(ns: NS, divisionName: string, officeSize: num
     return ns.corporation.getDivision(divisionName);
 }
 
-function calculateOptimalBoostMaterialQuantities(
-    matCoefficients: number[],
-    matSizes: number[],
+export function getOptimalBoostMaterialQuantities(
+    industryData: CorpIndustryData,
     spaceConstraint: number,
-    round: boolean): number[] {
-    const sumOfCoefficients = matCoefficients.reduce((a, b) => a + b, 0);
-    const sumOfSizes = matSizes.reduce((a, b) => a + b, 0);
-    const result = [];
-    for (let i = 0; i < matSizes.length; ++i) {
-        let matCount =
-            (spaceConstraint - 500 * ((matSizes[i] / matCoefficients[i]) * (sumOfCoefficients - matCoefficients[i]) - (sumOfSizes - matSizes[i])))
-            / (sumOfCoefficients / matCoefficients[i])
-            / matSizes[i];
-        if (matCoefficients[i] <= 0 || matCount < 0) {
-            return calculateOptimalBoostMaterialQuantities(
-                matCoefficients.toSpliced(i, 1),
-                matSizes.toSpliced(i, 1),
-                spaceConstraint,
-                round
-            ).toSpliced(i, 0, 0);
-        } else {
-            if (round) {
-                matCount = Math.round(matCount);
-            }
-            result.push(matCount);
-        }
-    }
-    return result;
-}
-
-export function optimizeBoostMaterialQuantities(industryData: CorpIndustryData, spaceConstraint: number, round = true) {
+    round = true): number[] {
     const {aiCoreFactor, hardwareFactor, realEstateFactor, robotFactor} = industryData;
     const boostMaterialCoefficients = [aiCoreFactor!, hardwareFactor!, realEstateFactor!, robotFactor!];
-    const boostMaterialSizes = boostMaterials.map((mat) => CorpMaterialsData[mat].size);
-    return calculateOptimalBoostMaterialQuantities(boostMaterialCoefficients, boostMaterialSizes, spaceConstraint, round);
+    const boostMaterialSizes = boostMaterials.map(mat => CorpMaterialsData[mat].size);
+
+    const calculateOptimalQuantities = (
+        matCoefficients: number[],
+        matSizes: number[]
+    ): number[] => {
+        const sumOfCoefficients = matCoefficients.reduce((a, b) => a + b, 0);
+        const sumOfSizes = matSizes.reduce((a, b) => a + b, 0);
+        const result = [];
+        for (let i = 0; i < matSizes.length; ++i) {
+            let matCount =
+                (spaceConstraint - 500 * ((matSizes[i] / matCoefficients[i]) * (sumOfCoefficients - matCoefficients[i]) - (sumOfSizes - matSizes[i])))
+                / (sumOfCoefficients / matCoefficients[i])
+                / matSizes[i];
+            if (matCoefficients[i] <= 0 || matCount < 0) {
+                return calculateOptimalQuantities(
+                    matCoefficients.toSpliced(i, 1),
+                    matSizes.toSpliced(i, 1)
+                ).toSpliced(i, 0, 0);
+            } else {
+                if (round) {
+                    matCount = Math.round(matCount);
+                }
+                result.push(matCount);
+            }
+        }
+        return result;
+    };
+    return calculateOptimalQuantities(boostMaterialCoefficients, boostMaterialSizes);
 }
 
 export function getExportRoutes(ns: NS): ExportRoute[] {
@@ -621,7 +621,7 @@ export function getExportRoutes(ns: NS): ExportRoute[] {
     return exportRoutes;
 }
 
-export function calculateRequiredQuantityOfInputMaterial(
+export function getRequiredQuantityOfInputMaterial(
     ns: NS,
     division: Division,
     city: CityName,
@@ -632,7 +632,7 @@ export function calculateRequiredQuantityOfInputMaterial(
     productSize?: number
 ): number {
     const officeData = ns.corporation.getOffice(division.name, city);
-    let rawProduction = calculateDivisionRawProduction(
+    let rawProduction = getDivisionRawProduction(
         isProduct,
         {
             operationsProduction: officeData.employeeProductionByJob.Operations,
@@ -771,7 +771,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         // Find required quantity of input materials to produce material
         if (industrialData.makesMaterials) {
             for (const [, inputMaterialData] of Object.entries(inputMaterials)) {
-                const requiredQuantity = calculateRequiredQuantityOfInputMaterial(
+                const requiredQuantity = getRequiredQuantityOfInputMaterial(
                     ns,
                     division,
                     city,
@@ -791,7 +791,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
                     continue;
                 }
                 for (const [, inputMaterialData] of Object.entries(inputMaterials)) {
-                    const requiredQuantity = calculateRequiredQuantityOfInputMaterial(
+                    const requiredQuantity = getRequiredQuantityOfInputMaterial(
                         ns,
                         division,
                         city,
@@ -865,12 +865,12 @@ export async function findOptimalBoostMaterialAmount(
     ratio: number): Promise<number[]> {
     const warehouseSize = ns.corporation.getWarehouse(division.name, city).size;
     if (useWarehouseSize) {
-        return optimizeBoostMaterialQuantities(industryData, warehouseSize * ratio);
+        return getOptimalBoostMaterialQuantities(industryData, warehouseSize * ratio);
     }
     await waitUntilAfterStateHappens(ns, CorpState.PRODUCTION);
     const availableSpace = ns.corporation.getWarehouse(division.name, city).size
         - ns.corporation.getWarehouse(division.name, city).sizeUsed;
-    return optimizeBoostMaterialQuantities(industryData, availableSpace * ratio);
+    return getOptimalBoostMaterialQuantities(industryData, availableSpace * ratio);
 }
 
 export async function waitUntilHavingEnoughResearchPoints(ns: NS, conditions: {
@@ -1022,7 +1022,7 @@ export function getLatestProductName(ns: NS, divisionName: string) {
     return products[products.length - 1];
 }
 
-export async function getProductMarkup(
+export async function calculateProductMarkup(
     divisionRP: number,
     industryScienceFactor: number,
     product: Product,
@@ -1145,7 +1145,7 @@ export function validateProductMarkupMap(ns: NS) {
  * @param item
  * @returns
  */
-export async function findOptimalSellingPrice(
+export async function getOptimalSellingPrice(
     ns: NS,
     division: Division,
     industryData: CorpIndustryData,
@@ -1180,7 +1180,7 @@ export async function findOptimalSellingPrice(
         const productKey = `${division.name}|${city}|${item.name}`;
         productMarkup = productMarkupMap.get(productKey);
         if (!productMarkup) {
-            productMarkup = await getProductMarkup(
+            productMarkup = await calculateProductMarkup(
                 division.researchPoints,
                 industryData.scienceFactor!,
                 item,
@@ -1219,7 +1219,7 @@ export async function findOptimalSellingPrice(
     return optimalPrice.toString();
 }
 
-export async function setOptimalSellingPrice(ns: NS) {
+export async function setOptimalSellingPriceForEverything(ns: NS) {
     if (ns.corporation.getCorporation().nextState !== "SALE") {
         return;
     }
@@ -1243,7 +1243,7 @@ export async function setOptimalSellingPrice(ns: NS) {
                     ns.corporation.setProductMarketTA2(divisionName, productName, true);
                     continue;
                 }
-                const optimalPrice = await findOptimalSellingPrice(ns, division, industryData, city, product);
+                const optimalPrice = await getOptimalSellingPrice(ns, division, industryData, city, product);
                 if (parseNumber(optimalPrice) > 0) {
                     ns.corporation.sellProduct(divisionName, city, productName, "MAX", optimalPrice, false);
                 }
@@ -1257,7 +1257,7 @@ export async function setOptimalSellingPrice(ns: NS) {
                     ns.corporation.setMaterialMarketTA2(divisionName, city, materialName, true);
                     continue;
                 }
-                const optimalPrice = await findOptimalSellingPrice(ns, division, industryData, city, material);
+                const optimalPrice = await getOptimalSellingPrice(ns, division, industryData, city, material);
                 if (parseNumber(optimalPrice) > 0) {
                     ns.corporation.sellMaterial(divisionName, city, materialName, "MAX", optimalPrice);
                 }
@@ -1266,7 +1266,7 @@ export async function setOptimalSellingPrice(ns: NS) {
     });
 }
 
-export function calculateResearchPointGainRate(ns: NS, divisionName: string) {
+export function getResearchPointGainRate(ns: NS, divisionName: string) {
     let totalGainRate = 0;
     for (const city of cities) {
         const office = ns.corporation.getOffice(divisionName, city);
@@ -1301,7 +1301,7 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio = 0.1)
             if (availableSpace < warehouse.size * reservedSpaceRatio) {
                 continue;
             }
-            const boostMaterialQuantities = optimizeBoostMaterialQuantities(industryData, availableSpace * ratio);
+            const boostMaterialQuantities = getOptimalBoostMaterialQuantities(industryData, availableSpace * ratio);
             orders.push({
                 city: city,
                 materials: [
@@ -1337,7 +1337,7 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio = 0.1)
     }
 }
 
-export function calculateProductMarketPrice(
+export function getProductMarketPrice(
     ns: NS,
     division: Division,
     industryData: CorpIndustryData,
