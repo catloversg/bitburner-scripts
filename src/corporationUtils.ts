@@ -89,12 +89,12 @@ export const researchPrioritiesForProductDivision: ResearchPriority[] = [
 export const exportString = "(IPROD+IINV/10)*(-1)";
 
 // Key: divisionName|city
-const smartSupplyMap: Map<string, number> = new Map<string, number>();
+const smartSupplyData: Map<string, number> = new Map<string, number>();
 
 // Key: divisionName|city|productName
-const productMarkupMap = new Map<string, number>();
+const productMarkupData: Map<string, number> = new Map<string, number>();
 
-const setOfDivisionsWaitingForRP = new Set<string>();
+const setOfDivisionsWaitingForRP: Set<string> = new Set<string>();
 
 export class Logger {
     readonly #enableLogging: boolean;
@@ -660,22 +660,25 @@ export function getLimitedRawProduction(
     );
     rawProduction = rawProduction * 10;
 
-    // Calculate net change in warehouse storage space when producing a material/product unit
-    let netStorageSizeUnit = 0;
+    // Calculate required storage space of each output unit. It is the net change in warehouse's storage space when
+    // producing an output unit.
+    let requiredStorageSpaceOfEachOutputUnit = 0;
     if (isProduct) {
-        netStorageSizeUnit += productSize!;
+        requiredStorageSpaceOfEachOutputUnit += productSize!;
     } else {
         for (const outputMaterialName of industrialData.producedMaterials!) {
-            netStorageSizeUnit += ns.corporation.getMaterialData(outputMaterialName).size;
+            requiredStorageSpaceOfEachOutputUnit += ns.corporation.getMaterialData(outputMaterialName).size;
         }
     }
     for (const [requiredMaterialName, requiredMaterialCoefficient] of getRecordEntries(industrialData.requiredMaterials)) {
-        netStorageSizeUnit -= ns.corporation.getMaterialData(requiredMaterialName).size * requiredMaterialCoefficient;
+        requiredStorageSpaceOfEachOutputUnit -= ns.corporation.getMaterialData(requiredMaterialName).size * requiredMaterialCoefficient;
     }
-    // If there is not enough space in warehouse, we limit the raw production
-    if (netStorageSizeUnit > 0) {
-        const maxAmountOfUnit = Math.floor((warehouse.size - warehouse.sizeUsed) / netStorageSizeUnit);
-        rawProduction = Math.min(rawProduction, maxAmountOfUnit);
+    // Limit the raw production if needed
+    if (requiredStorageSpaceOfEachOutputUnit > 0) {
+        const maxNumberOfOutputUnits = Math.floor(
+            (warehouse.size - warehouse.sizeUsed) / requiredStorageSpaceOfEachOutputUnit
+        );
+        rawProduction = Math.min(rawProduction, maxNumberOfOutputUnits);
     }
 
     rawProduction = Math.max(rawProduction, 0);
@@ -722,7 +725,7 @@ export function setSmartSupplyData(ns: NS): void {
             }
         }
 
-        smartSupplyMap.set(buildSmartSupplyKey(divisionName, city), totalRawProduction);
+        smartSupplyData.set(buildSmartSupplyKey(divisionName, city), totalRawProduction);
     });
 }
 
@@ -833,27 +836,11 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
             };
         }
 
-        // Find required quantity of input materials to produce material
-        if (industrialData.makesMaterials) {
-            for (const inputMaterialData of Object.values(inputMaterials)) {
-                const requiredQuantity = (smartSupplyMap.get(buildSmartSupplyKey(divisionName, city)) ?? 0)
-                    * inputMaterialData.coefficient;
-                inputMaterialData.requiredQuantity += requiredQuantity;
-            }
-        }
-        // Find required quantity of input materials to produce product
-        if (industrialData.makesProducts) {
-            for (const productName of division.products) {
-                const product = ns.corporation.getProduct(divisionName, city, productName);
-                if (product.developmentProgress < 100) {
-                    continue;
-                }
-                for (const inputMaterialData of Object.values(inputMaterials)) {
-                    const requiredQuantity = (smartSupplyMap.get(buildSmartSupplyKey(divisionName, city)) ?? 0)
-                        * inputMaterialData.coefficient;
-                    inputMaterialData.requiredQuantity += requiredQuantity;
-                }
-            }
+        // Find required quantity of input materials to produce material/product
+        for (const inputMaterialData of Object.values(inputMaterials)) {
+            const requiredQuantity = (smartSupplyData.get(buildSmartSupplyKey(divisionName, city)) ?? 0)
+                * inputMaterialData.coefficient;
+            inputMaterialData.requiredQuantity += requiredQuantity;
         }
 
         // Limit the input material units to max number of units that we can store in warehouse's free space
@@ -1187,12 +1174,12 @@ export function isProduct(item: Material | Product): item is Product {
 }
 
 export function validateProductMarkupMap(ns: NS): void {
-    for (const productKey of productMarkupMap.keys()) {
+    for (const productKey of productMarkupData.keys()) {
         const productKeyInfo = productKey.split("|");
         const divisionName = productKeyInfo[0];
         const productName = productKeyInfo[2];
         if (!ns.corporation.getDivision(divisionName).products.includes(productName)) {
-            productMarkupMap.delete(productKey);
+            productMarkupData.delete(productKey);
         }
     }
 }
@@ -1206,7 +1193,7 @@ export async function getProductMarkup(
 ): Promise<number> {
     let productMarkup;
     const productMarkupKey = `${division.name}|${city}|${item.name}`;
-    productMarkup = productMarkupMap.get(productMarkupKey);
+    productMarkup = productMarkupData.get(productMarkupKey);
     if (!productMarkup) {
         productMarkup = await calculateProductMarkup(
             division.researchPoints,
@@ -1220,7 +1207,7 @@ export async function getProductMarkup(
                 researchAndDevelopmentProduction: office.employeeProductionByJob["Research & Development"],
             }
         );
-        productMarkupMap.set(productMarkupKey, productMarkup);
+        productMarkupData.set(productMarkupKey, productMarkup);
     }
     return productMarkup;
 }
