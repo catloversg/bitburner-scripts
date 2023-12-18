@@ -9,8 +9,10 @@ import {
     buyOptimalAmountOfInputMaterials,
     buyTeaAndThrowPartyForAllDivisions,
     clearPurchaseOrders,
+    getProductMarkup,
     loopAllDivisionsAndCities,
     setOptimalSellingPriceForEverything,
+    setSmartSupplyData,
     showWarning,
     validateProductMarkupMap
 } from "/corporationUtils";
@@ -53,6 +55,31 @@ export async function main(nsContext: NS): Promise<void> {
         const warehouseCongestionData = new Map<string, number>();
         // noinspection InfiniteLoopJS
         while (true) {
+            // Calculate product's markup ASAP
+            if (ns.corporation.getCorporation().prevState === CorpState.PRODUCTION) {
+                loopAllDivisionsAndCities(ns, (divisionName, city) => {
+                    const division = ns.corporation.getDivision(divisionName);
+                    if (!division.makesProducts) {
+                        return;
+                    }
+                    const industryData = ns.corporation.getIndustryData(division.type);
+                    const office = ns.corporation.getOffice(divisionName, city);
+                    for (const productName of division.products) {
+                        const product = ns.corporation.getProduct(divisionName, city, productName);
+                        if (product.developmentProgress < 100) {
+                            continue;
+                        }
+                        getProductMarkup(
+                            division,
+                            industryData,
+                            city,
+                            office,
+                            product
+                        );
+                    }
+                });
+            }
+
             buyTeaAndThrowPartyForAllDivisions(ns);
 
             // Smart Supply
@@ -65,6 +92,7 @@ export async function main(nsContext: NS): Promise<void> {
                     smartSupplyHasBeenEnabledEverywhere = true;
                 }
                 if (!smartSupplyHasBeenEnabledEverywhere) {
+                    setSmartSupplyData(ns);
                     buyOptimalAmountOfInputMaterials(ns, warehouseCongestionData);
                 }
             }

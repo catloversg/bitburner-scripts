@@ -117,6 +117,14 @@ export interface ResearchPriority {
     costMultiplier: number;
 }
 
+export interface MaterialOrder {
+    city: CityName;
+    materials: {
+        name: MaterialName;
+        count: number;
+    }[];
+}
+
 export interface ExportRoute {
     material: CorpMaterialName;
     sourceCity: CityName;
@@ -204,7 +212,7 @@ export function formatNumber(value: number): string {
 
 /**
  * src\Corporation\Division.ts: calculateProductionFactors()
- * This method assumes that 6 cities have the same number of boost materials' units in their warehouses.
+ * This function assumes that 6 cities have the same number of boost materials' units in their warehouses.
  *
  * @param industryData
  * @param boostMaterials
@@ -556,7 +564,8 @@ export async function calculateEmployeeStats(
         employeeProductionByJob: Record<EmployeePosition, number>;
     },
     corporationUpgradeLevels: CorporationUpgradeLevels,
-    divisionResearches: DivisionResearches): Promise<{
+    divisionResearches: DivisionResearches
+): Promise<{
     avgCreativity: number,
     avgCharisma: number,
     avgIntelligence: number,
