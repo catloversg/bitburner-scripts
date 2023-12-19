@@ -159,16 +159,16 @@ export class CorporationBenchmark {
         const priorityQueue = new PriorityQueue(comparator);
         let minSmartStorageLevel = currentSmartStorageLevel;
         if (maxSmartStorageLevel - minSmartStorageLevel > 1000) {
-            minSmartStorageLevel = Math.floor((currentSmartStorageLevel + maxSmartStorageLevel) * 2 / 3);
+            minSmartStorageLevel = maxSmartStorageLevel - 1000;
         }
         let minWarehouseLevel = currentWarehouseLevel;
-        if (maxWarehouseLevel - currentWarehouseLevel > 1000) {
-            minWarehouseLevel = Math.floor((currentWarehouseLevel + maxWarehouseLevel) * 2 / 3);
+        if (maxWarehouseLevel - minWarehouseLevel > 1000) {
+            minWarehouseLevel = maxWarehouseLevel - 1000;
         }
-        logger.log("minSmartStorageLevel", minSmartStorageLevel);
-        logger.log("minWarehouseLevel", minWarehouseLevel);
-        logger.log("maxSmartStorageLevel", maxSmartStorageLevel);
-        logger.log("maxWarehouseLevel", maxWarehouseLevel);
+        logger.log(`minSmartStorageLevel: ${minSmartStorageLevel}`);
+        logger.log(`minWarehouseLevel: ${minWarehouseLevel}`);
+        logger.log(`maxSmartStorageLevel: ${maxSmartStorageLevel}`);
+        logger.log(`maxWarehouseLevel: ${maxWarehouseLevel}`);
         logger.time("StorageAndFactory benchmark");
         for (let smartStorageLevel = minSmartStorageLevel; smartStorageLevel <= maxSmartStorageLevel; smartStorageLevel++) {
             const upgradeSmartStorageCost = getUpgradeCost(
