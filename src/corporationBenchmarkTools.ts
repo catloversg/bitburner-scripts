@@ -2,7 +2,7 @@ import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
 import {BenchmarkType, CorporationBenchmark, getComparator, OfficeBenchmarkData} from "/corporationBenchmark";
-import {calculateEmployeeStats, CityName, EmployeePosition, formatNumber, ResearchName} from "/corporationFormulas";
+import {calculateEmployeeStats, CityName, formatNumber, ResearchName} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct, Logger} from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
 import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
@@ -103,25 +103,13 @@ async function splitWorkload(
     logger.timeLog("Office benchmark execution time");
 }
 
-/**
- *
- * @param ns
- * @param division
- * @param industryData
- * @param city
- * @param maxTotalEmployees Does not count RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
- * total employees is 9.
- * @param item
- * @param sortType
- * @param maxRerun
- * @param enableLogging
- */
 export async function optimizeOffice(
     ns: NS,
     division: Division,
     industryData: CorpIndustryData,
     city: CityName,
-    maxTotalEmployees: number,
+    maxNonRnDEmployees: number,
+    rndJob: number,
     item: Material | Product,
     sortType: "rawProduction" | "optimalPrice" | "profit" | "progress" | "profit_progress",
     maxRerun = 1,
@@ -137,16 +125,16 @@ export async function optimizeOffice(
     const corporationUpgradeLevels = getCorporationUpgradeLevels(ns);
     const divisionResearches = getDivisionResearches(ns, division.name);
 
-    if (maxTotalEmployees < 4) {
-        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxTotalEmployees}`);
+    if (maxNonRnDEmployees < 4) {
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxNonRnDEmployees}`);
     }
 
     const numberOfNewEmployees =
-        maxTotalEmployees
-        + office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT]
+        maxNonRnDEmployees
+        + rndJob
         - office.numEmployees;
     if (numberOfNewEmployees < 0) {
-        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxTotalEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxNonRnDEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
     }
     const totalExperience = office.totalExperience + 75 * numberOfNewEmployees;
     // Calculate avgStats based on current office data
@@ -221,7 +209,7 @@ export async function optimizeOffice(
     };
 
     const min = 1;
-    const max = Math.floor(maxTotalEmployees * 0.65);
+    const max = Math.floor(maxNonRnDEmployees * 0.65);
     let maxUsedStep = 0;
     let error: unknown;
     const workload: Workload = async (
@@ -256,8 +244,8 @@ export async function optimizeOffice(
                 min: managementJob.min,
                 max: managementJob.max
             },
-            office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT],
-            maxTotalEmployees,
+            rndJob,
+            maxNonRnDEmployees,
             item,
             customData,
             sortType

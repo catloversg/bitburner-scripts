@@ -415,9 +415,14 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
 
     // Import materials
     for (const city of cities) {
-        // Import Plants from Agriculture
+        // We must prioritize Tobacco over Chemical when setting up export routes
+        // Export Plants from Agriculture to Tobacco
         corp.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants");
         corp.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants", exportString);
+
+        // Export Plants from Agriculture to Chemical
+        corp.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants");
+        corp.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants", exportString);
     }
 
     const agricultureDivision = ns.corporation.getDivision(DivisionName.AGRICULTURE);
@@ -468,16 +473,22 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
 }
 
 async function improveAllDivisions() {
-    const agricultureDivision = ns.corporation.getDivision(DivisionName.AGRICULTURE);
-    const chemicalDivision = ns.corporation.getDivision(DivisionName.CHEMICAL);
-    const tobaccoDivision = ns.corporation.getDivision(DivisionName.TOBACCO);
     let cycleCount = 0;
+    const pendingImprovingDivisions = new Set<string>();
+    const pendingBuyingBoostMaterialsDivisions = new Set<string>();
+    const buyBoostMaterialsIfNeeded = (divisionName: string) => {
+        if (!pendingBuyingBoostMaterialsDivisions.has(divisionName)) {
+            pendingBuyingBoostMaterialsDivisions.add(divisionName);
+            buyBoostMaterials(ns, ns.corporation.getDivision(divisionName)).then(() => {
+                pendingBuyingBoostMaterialsDivisions.delete(divisionName);
+            });
+        }
+    };
     // noinspection InfiniteLoopJS
     while (true) {
         ++cycleCount;
         const corporation = ns.corporation.getCorporation();
         const profit = corporation.revenue - corporation.expenses;
-        const promises: Promise<void>[] = [];
         console.log(`cycleCount: ${cycleCount}`);
 
         await buyResearch();
@@ -491,16 +502,20 @@ async function improveAllDivisions() {
             buyUpgrade(ns, UpgradeName.WILSON_ANALYTICS, maxWilsonLevel);
         }
 
-        if (cycleCount % 10 === 0 || corporation.funds > profit * 1000) {
-            await improveProductDivision(
+        if ((cycleCount % 10 === 0 || corporation.funds > profit * 1000)
+            && !pendingImprovingDivisions.has(DivisionName.TOBACCO)) {
+            pendingImprovingDivisions.add(DivisionName.TOBACCO);
+            improveProductDivision(
                 ns.corporation.getDivision(DivisionName.TOBACCO),
                 corporation.funds * 0.99,
                 defaultBudgetRatioForProductDivision,
                 false,
                 false
-            );
-            ns.print("Finish improving product division");
-            promises.push(buyBoostMaterials(ns, tobaccoDivision));
+            ).then(() => {
+                pendingImprovingDivisions.delete(DivisionName.TOBACCO);
+                ns.print(`Finish improving product division: ${DivisionName.TOBACCO}`);
+                buyBoostMaterialsIfNeeded(DivisionName.TOBACCO);
+            });
         }
 
         developNewProduct(
@@ -512,27 +527,36 @@ async function improveAllDivisions() {
 
         if (cycleCount % 20 === 0) {
             // Use last cycle's profit to improve support divisions.
-            await improveSupportDivision(
-                ns.corporation.getDivision(DivisionName.AGRICULTURE),
-                Math.min(profit * 0.95, ns.corporation.getCorporation().funds),
-                defaultBudgetRatioForSupportDivision,
-                false,
-                false
-            );
+            if (!pendingImprovingDivisions.has(DivisionName.AGRICULTURE)) {
+                pendingImprovingDivisions.add(DivisionName.AGRICULTURE);
+                improveSupportDivision(
+                    ns.corporation.getDivision(DivisionName.AGRICULTURE),
+                    Math.min(profit * 0.95, ns.corporation.getCorporation().funds),
+                    defaultBudgetRatioForSupportDivision,
+                    false,
+                    false
+                ).then(() => {
+                    pendingImprovingDivisions.delete(DivisionName.AGRICULTURE);
+                    ns.print(`Finish improving support division: ${DivisionName.AGRICULTURE}`);
+                    buyBoostMaterialsIfNeeded(DivisionName.AGRICULTURE);
+                });
+            }
 
-            await improveSupportDivision(
-                ns.corporation.getDivision(DivisionName.CHEMICAL),
-                Math.min(profit * 0.05, ns.corporation.getCorporation().funds),
-                defaultBudgetRatioForSupportDivision,
-                false,
-                false
-            );
-            ns.print("Finish improving support divisions");
-
-            promises.push(buyBoostMaterials(ns, agricultureDivision));
-            promises.push(buyBoostMaterials(ns, chemicalDivision));
+            if (!pendingImprovingDivisions.has(DivisionName.CHEMICAL)) {
+                pendingImprovingDivisions.add(DivisionName.CHEMICAL);
+                improveSupportDivision(
+                    ns.corporation.getDivision(DivisionName.CHEMICAL),
+                    Math.min(profit * 0.05, ns.corporation.getCorporation().funds),
+                    defaultBudgetRatioForSupportDivision,
+                    false,
+                    false
+                ).then(() => {
+                    pendingImprovingDivisions.delete(DivisionName.CHEMICAL);
+                    ns.print(`Finish improving support division: ${DivisionName.CHEMICAL}`);
+                    buyBoostMaterialsIfNeeded(DivisionName.CHEMICAL);
+                });
+            }
         }
-        await Promise.allSettled(promises);
 
         await waitUntilAfterStateHappens(ns, CorpState.START);
     }
@@ -617,8 +641,8 @@ async function improveSupportDivision(
         warehouse: number;
         office: number;
     },
-    dryRun = false,
-    enableLogging = false,
+    dryRun: boolean,
+    enableLogging: boolean,
     customData?: {
         warehouse: number;
         office: {
@@ -717,9 +741,10 @@ async function improveSupportDivision(
                     industryData,
                     city,
                     maxOfficeSize - minRnDEmployee,
+                    minRnDEmployee,
                     item,
                     "rawProduction",
-                    1,
+                    0,
                     enableLogging
                 );
                 if (dataArray.length === 0) {
@@ -767,9 +792,9 @@ function improveProductDivisionRawProduction(
     industryData: CorpIndustryData,
     divisionResearches: DivisionResearches,
     budget: number,
-    dryRun = false,
+    dryRun: boolean,
     benchmark: CorporationBenchmark,
-    enableLogging = false) {
+    enableLogging: boolean) {
     const logger = new Logger(enableLogging);
     const dataArray = benchmark.optimizeStorageAndFactory(
         industryData,
@@ -807,9 +832,9 @@ function improveProductDivisionWilsonAdvert(
     industryData: CorpIndustryData,
     divisionResearches: DivisionResearches,
     budget: number,
-    dryRun = false,
+    dryRun: boolean,
     benchmark: CorporationBenchmark,
-    enableLogging = false) {
+    enableLogging: boolean) {
     const logger = new Logger(enableLogging);
     const dataArray = benchmark.optimizeWilsonAndAdvert(
         industryData,
@@ -834,8 +859,8 @@ async function improveProductDivisionMainOffice(
     division: Division,
     industryData: CorpIndustryData,
     budget: number,
-    dryRun = false,
-    enableLogging = false) {
+    dryRun: boolean,
+    enableLogging: boolean) {
     const logger = new Logger(enableLogging);
     const office = ns.corporation.getOffice(division.name, mainProductDevelopmentCity);
     const maxOfficeSize = getMaxAffordableOfficeSize(office.size, budget);
@@ -891,6 +916,7 @@ async function improveProductDivisionMainOffice(
         industryData,
         mainProductDevelopmentCity,
         maxOfficeSize,
+        0,
         item,
         sortType,
         1,
@@ -917,8 +943,8 @@ async function improveProductDivisionMainOffice(
 async function improveProductDivisionSupportOffices(
     division: Division,
     budget: number,
-    dryRun = false,
-    enableLogging = false) {
+    dryRun: boolean,
+    enableLogging: boolean) {
     const logger = new Logger(enableLogging);
     const officeSetups: OfficeSetup[] = [];
     for (const city of supportProductDevelopmentCities) {
@@ -952,8 +978,8 @@ async function improveProductDivisionOffices(
     division: Division,
     industryData: CorpIndustryData,
     budget: number,
-    dryRun = false,
-    enableLogging = false) {
+    dryRun: boolean,
+    enableLogging: boolean) {
     await improveProductDivisionMainOffice(
         division,
         industryData,
@@ -980,8 +1006,8 @@ async function improveProductDivision(
         salesBot: number;
         projectInsight: number;
     },
-    dryRun = false,
-    enableLogging = false) {
+    dryRun: boolean,
+    enableLogging: boolean) {
     const logger = new Logger(enableLogging);
     const industryData = ns.corporation.getIndustryData(division.type);
     const divisionResearches = getDivisionResearches(ns, division.name);

@@ -248,10 +248,7 @@ export function upgradeWarehouse(ns: NS, divisionName: string, city: CityName, t
  * @param divisionName
  */
 export async function buyTeaAndThrowParty(ns: NS, divisionName: string): Promise<void> {
-    let epsilon = 0;
-    if (ns.corporation.getInvestmentOffer().round >= 3 || ns.corporation.getCorporation().public) {
-        epsilon = 0.5;
-    }
+    let epsilon = 0.5;
     let minAcceptableEnergy = 99;
     let minAcceptableMorale = 99;
     if (ns.corporation.hasResearched(divisionName, ResearchName.GO_JUICE)) {
@@ -284,10 +281,15 @@ export async function buyTeaAndThrowParty(ns: NS, divisionName: string): Promise
  * Buying tea/throwing party once for each office in all divisions
  */
 export function buyTeaAndThrowPartyForAllDivisions(ns: NS): void {
-    let epsilon = 0;
+    // If we are in round 3+, we buy tea and throw party every cycle to maintain max energy/morale
     if (ns.corporation.getInvestmentOffer().round >= 3 || ns.corporation.getCorporation().public) {
-        epsilon = 0.5;
+        loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
+            ns.corporation.buyTea(divisionName, city);
+            ns.corporation.throwParty(divisionName, city, 500000);
+        });
+        return;
     }
+    let epsilon = 0.5;
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
         let minAcceptableEnergy = 99;
         let minAcceptableMorale = 99;
@@ -436,12 +438,14 @@ export async function stockMaterials(
     orders: MaterialOrder[],
     discardExceeded = false
 ): Promise<void> {
+    let nsExited = false;
     // Clear purchase order of boost materials when script exits
     ns.atExit(() => {
+        nsExited = true;
         clearPurchaseOrders(ns, false);
     });
     let count = 0;
-    while (true) {
+    while (!nsExited) {
         if (count === 3) {
             const warningMessage = `It takes too many cycles to stock up on materials. Division: ${divisionName}, `
                 + `orders: ${JSON.stringify(orders)}`;
@@ -983,21 +987,11 @@ function getMaxNumberOfProducts(ns: NS, divisionName: string): number {
     return maxNumberOfProducts;
 }
 
-/**
- *
- * @param ns
- * @param divisionName
- * @param mainProductDevelopmentCity
- * @param productDevelopmentBudget
- * @param actionBeforeDevelopingNewProduct This is called before {@link ns.corporation.makeProduct}
- */
 export function developNewProduct(
     ns: NS,
     divisionName: string,
     mainProductDevelopmentCity: CityName,
-    productDevelopmentBudget: number,
-    actionBeforeDevelopingNewProduct = () => {
-    }
+    productDevelopmentBudget: number
 ): void {
     const products = ns.corporation.getDivision(divisionName).products;
 
@@ -1052,7 +1046,6 @@ export function developNewProduct(
     if (worstProduct && products.length === getMaxNumberOfProducts(ns, divisionName)) {
         ns.corporation.discontinueProduct(divisionName, worstProduct.name);
     }
-    actionBeforeDevelopingNewProduct();
     ns.corporation.makeProduct(
         divisionName,
         mainProductDevelopmentCity,
@@ -1350,12 +1343,12 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio: numbe
     const industryData = ns.corporation.getIndustryData(division.type);
     let reservedSpaceRatio = 0.15;
     if (industryData.makesProducts) {
-        reservedSpaceRatio = 0.05;
-        ratio = 0.2;
+        reservedSpaceRatio = 0.1;
+        ratio = 0.1;
     }
     let count = 0;
     while (true) {
-        await waitUntilAfterStateHappens(ns, CorpState.PRODUCTION);
+        await waitUntilAfterStateHappens(ns, CorpState.EXPORT);
         if (count === 15) {
             const warningMessage = `It takes too many cycles to buy boost materials. Division: ${division.name}.`;
             showWarning(ns, warningMessage);

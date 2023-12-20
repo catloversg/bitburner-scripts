@@ -598,21 +598,6 @@ export class CorporationBenchmark {
         };
     }
 
-    /**
-     *
-     * @param division
-     * @param industryData
-     * @param operationsJob
-     * @param engineerJob
-     * @param managementJob
-     * @param rndJob
-     * @param maxTotalEmployees Does not include RnD. For example, if office has 3 RnD and maxTotalEmployees is 6, office's
-     * total employees is 9.
-     * @param item
-     * @param customData
-     * @param sortType
-     * @param enableLogging
-     */
     public async optimizeOffice(
         division: Division,
         industryData: CorpIndustryData,
@@ -629,7 +614,7 @@ export class CorporationBenchmark {
             max: number;
         },
         rndJob: number,
-        maxTotalEmployees: number,
+        maxNonRnDEmployees: number,
         item: Material | Product,
         customData: {
             office: {
@@ -670,10 +655,10 @@ export class CorporationBenchmark {
             for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += step) {
                 for (let management = managementJob.min; management <= managementJob.max; management += step) {
                     if (operations + engineer === 0
-                        || operations + engineer + management >= maxTotalEmployees) {
+                        || operations + engineer + management >= maxNonRnDEmployees) {
                         continue;
                     }
-                    const business = maxTotalEmployees - (operations + engineer + management);
+                    const business = maxNonRnDEmployees - (operations + engineer + management);
                     const dataEntry = await this.calculateOfficeBenchmarkData(
                         division,
                         industryData,
