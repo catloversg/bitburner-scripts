@@ -7,17 +7,22 @@ let root: Element;
 let gameRootElement: Element;
 
 function assistRoulette(ns: NS) {
-    const title = gameRootElement.querySelector("h4");
-    if (title === null || title.textContent !== "Iker Molina Casino") {
-        ns.print("We are not in casino");
-        return;
-    }
-
     let casinoToolsDiv = doc.querySelector("#casino-tools");
     // Remove old tools
     if (casinoToolsDiv !== null) {
         casinoToolsDiv.remove();
     }
+
+    const title = gameRootElement.querySelector("h4");
+    if (title === null || title.textContent !== "Iker Molina Casino") {
+        ns.print("We are not in casino");
+        return;
+    }
+    if (gameRootElement.querySelectorAll("h4").length !== 3) {
+        ns.print("This is not roulette");
+        return;
+    }
+
     // Create tools
     const casinoToolsTemplate = doc.createElement("template");
     casinoToolsTemplate.innerHTML = `
@@ -87,16 +92,16 @@ function assistRoulette(ns: NS) {
         const zeroDate = timestamp - (timestamp % maxSeed);
 
         if (rouletteSpinsForGuessingElement.value.trim() === "") {
-            ns.print("Please set spins for guessing");
+            alert("Please set spins for guessing");
             return;
         }
         const spinsForGuessing = rouletteSpinsForGuessingElement.value.trim().split(" ").map(value => {
             return parseNumber(value);
         });
         if (spinsForGuessing.length === 0 || spinsForGuessing.some(value => {
-            return isNaN(parseNumber(value));
+            return Number.isNaN(parseNumber(value));
         })) {
-            ns.print("Invalid spins for guessing");
+            alert("Invalid spins for guessing");
             return;
         }
 
@@ -123,6 +128,7 @@ function assistRoulette(ns: NS) {
         for (let i = 0; i < 100; i++) {
             rouletteGuessedSpinsElement.value += `${Math.floor(rng.random() * 37)} `;
         }
+        highlightNextGuessedSpin();
     });
     casinoToolsDiv.querySelector("#btn-highlight-next-guess")!.addEventListener("click", () => {
         highlightNextGuessedSpin();
@@ -134,12 +140,14 @@ function assistRoulette(ns: NS) {
     const spinResultNumberElement = gameRootElement.querySelector("h4:nth-of-type(2)")!;
 
     function getSpinResultNumber() {
+        if (spinResultNumberElement.textContent === "0") {
+            return 0;
+        }
         return parseNumber(spinResultNumberElement.textContent!.slice(0, -1));
     }
 
     const spinResultRewardElement = gameRootElement.querySelector("h4:nth-of-type(3)")!;
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function getSpinResult() {
         return spinResultRewardElement.textContent!.split(" ")[0];
     }
@@ -147,10 +155,14 @@ function assistRoulette(ns: NS) {
     const betButtons = gameRootElement.querySelectorAll("button");
     betButtons.forEach(betButton => {
         betButton.addEventListener("click", () => {
-            ns.sleep(2000).then(()=> {
-                rouletteSpinHistoryElement.value += ` ${getSpinResultNumber()}`;
+            setTimeout(() => {
+                const spinResult = getSpinResult();
+                if (spinResult === "lost" && rouletteGuessedSpinsElement.value.trim() !== "") {
+                    rouletteSpinHistoryElement.value = `${rouletteSpinHistoryElement.value} ${betButton.textContent}`.trim();
+                }
+                rouletteSpinHistoryElement.value = `${rouletteSpinHistoryElement.value} ${getSpinResultNumber()}`.trim();
                 highlightNextGuessedSpin();
-            });
+            }, 2000);
         });
     });
 
@@ -199,8 +211,4 @@ export async function main(ns: NS) {
     gameRootElement = doc.querySelector("#root > div:nth-of-type(2) > div:nth-of-type(2)")!;
 
     assistRoulette(ns);
-
-    while (true) {
-        await ns.asleep(100);
-    }
 }
