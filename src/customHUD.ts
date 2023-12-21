@@ -242,7 +242,7 @@ function createTestingTool() {
             runCorpMaintain = true;
         });
         doc.getElementById("btn-unlimited-bonus-time")!.addEventListener("click", function () {
-            globalThis.Player.corporation.storedCycles = 1000000;
+            globalThis.Player.corporation.storedCycles = 1e9;
         });
         doc.getElementById("btn-remove-bonus-time")!.addEventListener("click", function () {
             globalThis.Player.corporation.storedCycles = 0;
@@ -634,7 +634,7 @@ export async function main(nsContext: NS): Promise<void> {
                     }
                     await ns.sleep(1000);
                     ns.exec("daemon.js", "home", 1, "--maintainCorporation");
-                    globalThis.Player.corporation.storedCycles = 1000000;
+                    globalThis.Player.corporation.storedCycles = 1e9;
                     runCorpRound = false;
                 }
             }

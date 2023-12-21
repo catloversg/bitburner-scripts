@@ -1,4 +1,4 @@
-import {AutocompleteData, CorpIndustryData, Corporation, Division, Material, NS, Product} from "@ns";
+import {AutocompleteData, CorpIndustryData, Division, Material, NS, Product} from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlags,
@@ -36,6 +36,7 @@ import {
     generateMaterialsOrders,
     generateOfficeSetups,
     getDivisionResearches,
+    getProductIdArray,
     getProductMarketPrice,
     hasDivision,
     initDivision,
@@ -46,6 +47,7 @@ import {
     stockMaterials,
     upgradeOffices,
     upgradeWarehouse,
+    waitForNumberOfCycles,
     waitUntilAfterStateHappens,
     waitUntilHavingEnoughResearchPoints
 } from "/corporationUtils";
@@ -209,7 +211,6 @@ const defaultBudgetRatioForProductDivision = {
 
 let ns: NS;
 let nsx: NetscriptExtension;
-let corp: Corporation;
 let config: NetscriptFlags;
 let mainProductDevelopmentCity: CityName;
 let supportProductDevelopmentCities: CityName[];
@@ -228,7 +229,6 @@ const defaultConfig: NetscriptFlagsSchema = [
 function init(nsContext: NS) {
     ns = nsContext;
     nsx = new NetscriptExtension(ns);
-    corp = ns.corporation;
     mainProductDevelopmentCity = ns.enums.CityName.Sector12;
     supportProductDevelopmentCities = Object.values(ns.enums.CityName)
         .filter(cityName => cityName !== mainProductDevelopmentCity);
@@ -244,8 +244,8 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1) 
 
     // Sell produced materials
     for (const city of cities) {
-        corp.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.PLANTS, "MAX", "MP");
-        corp.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.FOOD, "MAX", "MP");
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.PLANTS, "MAX", "MP");
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.FOOD, "MAX", "MP");
     }
 
     // Reassign jobs
@@ -313,14 +313,14 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1) 
     // Import materials, sell/export produced materials
     for (const city of cities) {
         // Export Plants from Agriculture to Chemical
-        corp.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants");
-        corp.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants", exportString);
+        ns.corporation.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants");
+        ns.corporation.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants", exportString);
 
         // Export Chemicals from Chemical to Agriculture
-        corp.cancelExportMaterial(DivisionName.CHEMICAL, city, DivisionName.AGRICULTURE, city, "Chemicals");
-        corp.exportMaterial(DivisionName.CHEMICAL, city, DivisionName.AGRICULTURE, city, "Chemicals", exportString);
+        ns.corporation.cancelExportMaterial(DivisionName.CHEMICAL, city, DivisionName.AGRICULTURE, city, "Chemicals");
+        ns.corporation.exportMaterial(DivisionName.CHEMICAL, city, DivisionName.AGRICULTURE, city, "Chemicals", exportString);
         // Sell Chemicals
-        corp.sellMaterial(DivisionName.CHEMICAL, city, MaterialName.CHEMICALS, "MAX", "MP");
+        ns.corporation.sellMaterial(DivisionName.CHEMICAL, city, MaterialName.CHEMICALS, "MAX", "MP");
     }
 
     await waitUntilHavingEnoughResearchPoints(
@@ -417,12 +417,12 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
     for (const city of cities) {
         // We must prioritize Tobacco over Chemical when setting up export routes
         // Export Plants from Agriculture to Tobacco
-        corp.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants");
-        corp.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants", exportString);
+        ns.corporation.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants");
+        ns.corporation.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants", exportString);
 
         // Export Plants from Agriculture to Chemical
-        corp.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants");
-        corp.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants", exportString);
+        ns.corporation.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants");
+        ns.corporation.exportMaterial(DivisionName.AGRICULTURE, city, DivisionName.CHEMICAL, city, "Plants", exportString);
     }
 
     const agricultureDivision = ns.corporation.getDivision(DivisionName.AGRICULTURE);
@@ -473,13 +473,17 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
 }
 
 async function improveAllDivisions() {
+    const maxNumberOfProductsInRound3 = 3;
+    const maxNumberOfProductsInRound4 = 6;
     let cycleCount = 0;
     const pendingImprovingDivisions = new Set<string>();
     const pendingBuyingBoostMaterialsDivisions = new Set<string>();
     const buyBoostMaterialsIfNeeded = (divisionName: string) => {
         if (!pendingBuyingBoostMaterialsDivisions.has(divisionName)) {
             pendingBuyingBoostMaterialsDivisions.add(divisionName);
+            ns.print(`Buying boost materials for division: ${divisionName}`);
             buyBoostMaterials(ns, ns.corporation.getDivision(divisionName)).then(() => {
+                ns.print(`Finish buying boost materials for division: ${divisionName}`);
                 pendingBuyingBoostMaterialsDivisions.delete(divisionName);
             });
         }
@@ -489,7 +493,7 @@ async function improveAllDivisions() {
         ++cycleCount;
         const corporation = ns.corporation.getCorporation();
         const profit = corporation.revenue - corporation.expenses;
-        console.log(`cycleCount: ${cycleCount}`);
+        console.log(`cycleCount: ${cycleCount}. Funds: ${ns.formatNumber(corporation.funds)}. Profit: ${ns.formatNumber(profit)}`);
 
         await buyResearch();
 
@@ -504,6 +508,7 @@ async function improveAllDivisions() {
 
         if ((cycleCount % 10 === 0 || corporation.funds > profit * 1000)
             && !pendingImprovingDivisions.has(DivisionName.TOBACCO)) {
+            console.log(`cycleCount: ${cycleCount}, offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
             pendingImprovingDivisions.add(DivisionName.TOBACCO);
             improveProductDivision(
                 ns.corporation.getDivision(DivisionName.TOBACCO),
@@ -518,12 +523,51 @@ async function improveAllDivisions() {
             });
         }
 
-        developNewProduct(
-            ns,
-            DivisionName.TOBACCO,
-            mainProductDevelopmentCity,
-            corporation.funds * 0.01
-        );
+        let needToDevelopNewProduct = true;
+        // In round 3 and 4, we only develop up to maxNumberOfProducts
+        const currentRound = ns.corporation.getInvestmentOffer().round;
+        if (currentRound === 3 || currentRound === 4) {
+            const productIdArray = getProductIdArray(ns, DivisionName.TOBACCO);
+            let numberOfDevelopedProducts = 0;
+            if (productIdArray.length > 0) {
+                numberOfDevelopedProducts = Math.max(...productIdArray) + 1;
+            }
+            let maxNumberOfProducts = maxNumberOfProductsInRound3;
+            if (currentRound === 4) {
+                maxNumberOfProducts = maxNumberOfProductsInRound4;
+            }
+            if (numberOfDevelopedProducts >= maxNumberOfProducts) {
+                needToDevelopNewProduct = false;
+
+                // If all products are finished, we wait for 15 cycles, then accept investment offer
+                const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
+                let allProductsAreFinished = true;
+                for (const productName of products) {
+                    const product = ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, productName);
+                    if (product.developmentProgress < 100) {
+                        allProductsAreFinished = false;
+                        break;
+                    }
+                }
+                if (allProductsAreFinished) {
+                    // for (let i = 0; i < 30; i++) {
+                    //     console.log(`cycleCount: ${cycleCount}, offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+                    //     await waitForNumberOfCycles(ns, 1);
+                    // }
+                    await waitForNumberOfCycles(ns, 15);
+                    ns.corporation.acceptInvestmentOffer();
+                    continue;
+                }
+            }
+        }
+        if (needToDevelopNewProduct) {
+            developNewProduct(
+                ns,
+                DivisionName.TOBACCO,
+                mainProductDevelopmentCity,
+                corporation.funds * 0.01
+            );
+        }
 
         if (cycleCount % 20 === 0) {
             // Use last cycle's profit to improve support divisions.
@@ -562,8 +606,17 @@ async function improveAllDivisions() {
     }
 }
 
-async function buyResearchForDivision(divisionName: string) {
-    if (!ns.corporation.hasResearched(divisionName, ResearchName.HI_TECH_RND_LABORATORY)) {
+async function buyResearch() {
+    const buyResearchLab = async (divisionName: string): Promise<{
+        divisionName: string,
+        officeSetups: OfficeSetup[]
+    }> => {
+        if (ns.corporation.hasResearched(divisionName, ResearchName.HI_TECH_RND_LABORATORY)) {
+            return {
+                divisionName: divisionName,
+                officeSetups: []
+            };
+        }
         // Backup office setups and assign all employees to R&D
         const officeSetups: OfficeSetup[] = [];
         for (const city of cities) {
@@ -595,42 +648,61 @@ async function buyResearchForDivision(divisionName: string) {
                 }]
             );
         }
-        // Wait until having enough RP
-        await waitUntilHavingEnoughResearchPoints(ns, [
-            {
-                divisionName: divisionName,
-                researchPoint: ns.corporation.getResearchCost(divisionName, ResearchName.HI_TECH_RND_LABORATORY)
+        return new Promise(resolve => {
+            waitUntilHavingEnoughResearchPoints(ns, [
+                {
+                    divisionName: divisionName,
+                    researchPoint: ns.corporation.getResearchCost(divisionName, ResearchName.HI_TECH_RND_LABORATORY) + 500
+                }
+            ]).then(() => {
+                // Buy research
+                ns.corporation.research(divisionName, ResearchName.HI_TECH_RND_LABORATORY);
+                resolve({
+                    divisionName: divisionName,
+                    officeSetups: officeSetups
+                });
+            });
+        });
+    };
+    const buyOtherResearches = async (divisionName: string): Promise<void> => {
+        let researchPriorities: ResearchPriority[];
+        if (divisionName === DivisionName.AGRICULTURE || divisionName === DivisionName.CHEMICAL) {
+            researchPriorities = researchPrioritiesForSupportDivision;
+        } else {
+            researchPriorities = researchPrioritiesForProductDivision;
+        }
+        for (const researchPriority of researchPriorities) {
+            if (ns.corporation.hasResearched(divisionName, researchPriority.research)) {
+                continue;
             }
-        ]);
-        // Buy research
-        ns.corporation.research(divisionName, ResearchName.HI_TECH_RND_LABORATORY);
+            const researchCost = ns.corporation.getResearchCost(divisionName, researchPriority.research);
+            if (ns.corporation.getDivision(divisionName).researchPoints < researchCost * researchPriority.costMultiplier) {
+                break;
+            }
+            ns.corporation.research(divisionName, researchPriority.research);
+        }
+    };
+
+    const promiseResults = await Promise.allSettled([
+        buyResearchLab(DivisionName.AGRICULTURE),
+        buyResearchLab(DivisionName.CHEMICAL),
+        buyResearchLab(DivisionName.TOBACCO),
+    ]);
+    for (const result of promiseResults) {
+        if (result.status === "rejected") {
+            continue;
+        }
         // Restore office setups
         assignJobs(
             ns,
-            divisionName,
-            officeSetups
+            result.value.divisionName,
+            result.value.officeSetups
         );
     }
-    let researchPriorities: ResearchPriority[];
-    if (divisionName === DivisionName.AGRICULTURE || divisionName === DivisionName.CHEMICAL) {
-        researchPriorities = researchPrioritiesForSupportDivision;
-    } else {
-        researchPriorities = researchPrioritiesForProductDivision;
-    }
-    for (const researchPriority of researchPriorities) {
-        const researchCost = ns.corporation.getResearchCost(divisionName, researchPriority.research);
-        if (!ns.corporation.hasResearched(divisionName, researchPriority.research)
-            && ns.corporation.getDivision(divisionName).researchPoints >= researchCost * researchPriority.costMultiplier) {
-            ns.corporation.research(divisionName, researchPriority.research);
-        }
-    }
-}
-
-async function buyResearch() {
     await Promise.allSettled([
-        buyResearchForDivision(DivisionName.AGRICULTURE),
-        buyResearchForDivision(DivisionName.CHEMICAL),
-        buyResearchForDivision(DivisionName.TOBACCO),
+        buyOtherResearches(DivisionName.AGRICULTURE),
+        buyOtherResearches(DivisionName.CHEMICAL),
+        buyOtherResearches(DivisionName.TOBACCO),
     ]);
 }
 
@@ -1124,8 +1196,8 @@ export async function main(nsContext: NS): Promise<void> {
     // ns.tail();
     ns.clearLog();
 
-    if (!corp.hasCorporation()) {
-        if (!corp.createCorporation("Corp", config.selfFund as boolean)) {
+    if (!ns.corporation.hasCorporation()) {
+        if (!ns.corporation.createCorporation("Corp", config.selfFund as boolean)) {
             ns.print(`Cannot create corporation`);
             return;
         }

@@ -46,6 +46,8 @@ export async function main(nsContext: NS): Promise<void> {
     // ns.tail();
     ns.clearLog();
 
+    clearPurchaseOrders(ns);
+
     if (config.maintainCorporation === true && ns.corporation.hasCorporation()) {
         // Clear purchase orders when script exits
         ns.atExit(() => {
