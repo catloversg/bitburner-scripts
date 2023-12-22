@@ -44,6 +44,8 @@ type Workload = (
 
 async function splitWorkload(
     ns: NS,
+    divisionName: string,
+    city: CityName,
     operationsJob: {
         min: number;
         max: number;
@@ -63,7 +65,8 @@ async function splitWorkload(
     const promises: Promise<void>[] = [];
     let current = operationsJob.min;
     const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
-    logger.time("Office benchmark execution time");
+    const loggerLabel = `Office benchmark execution time: ${divisionName}|${city}`;
+    logger.time(loggerLabel);
     for (let i = 0; i < numberOfThreads; ++i) {
         const from = current;
         if (from > operationsJob.max) {
@@ -100,7 +103,7 @@ async function splitWorkload(
         });
     });
     await Promise.allSettled(promises);
-    logger.timeLog("Office benchmark execution time");
+    logger.timeLog(loggerLabel);
 }
 
 export async function optimizeOffice(
@@ -260,6 +263,8 @@ export async function optimizeOffice(
     };
     await splitWorkload(
         ns,
+        division.name,
+        city,
         {
             min: min,
             max: max
@@ -295,6 +300,8 @@ export async function optimizeOffice(
         printDataEntryLog(currentBestResult);
         await splitWorkload(
             ns,
+            division.name,
+            city,
             {
                 min: currentBestResult.operations - maxUsedStep,
                 max: currentBestResult.operations + maxUsedStep

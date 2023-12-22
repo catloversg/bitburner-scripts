@@ -226,7 +226,7 @@ const defaultConfig: NetscriptFlagsSchema = [
     ["help", false],
 ];
 
-function init(nsContext: NS) {
+function init(nsContext: NS): void {
     ns = nsContext;
     nsx = new NetscriptExtension(ns);
     mainProductDevelopmentCity = ns.enums.CityName.Sector12;
@@ -234,7 +234,7 @@ function init(nsContext: NS) {
         .filter(cityName => cityName !== mainProductDevelopmentCity);
 }
 
-async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1) {
+async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1): Promise<void> {
     ns.print(`Use: ${JSON.stringify(option)}`);
     // Init division Agriculture
     await initDivision(ns, DivisionName.AGRICULTURE, 3, option.warehouseLevel);
@@ -279,7 +279,7 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1) 
     );
 }
 
-async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1) {
+async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1): Promise<void> {
     ns.print(`Use: ${JSON.stringify(option)}`);
     const startingBudget = ns.corporation.getCorporation().funds;
     if (startingBudget < 431e9) {
@@ -398,7 +398,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1) 
     ]);
 }
 
-async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) {
+async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1): Promise<void> {
     if (hasDivision(ns, DivisionName.TOBACCO)) {
         ns.spawn(ns.getScriptName(), {spawnDelay: 500}, "--improveAllDivisions");
         return;
@@ -453,8 +453,6 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
         true // debug
     );
 
-    await buyResearch();
-
     await buyTeaAndThrowParty(ns, DivisionName.TOBACCO);
     developNewProduct(
         ns,
@@ -472,7 +470,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1) 
     ns.spawn(ns.getScriptName(), {spawnDelay: 500}, "--improveAllDivisions");
 }
 
-async function improveAllDivisions() {
+async function improveAllDivisions(): Promise<void> {
     const maxNumberOfProductsInRound3 = 3;
     const maxNumberOfProductsInRound4 = 6;
     let cycleCount = 0;
@@ -488,12 +486,26 @@ async function improveAllDivisions() {
             });
         }
     };
+
+    await improveProductDivision(
+        ns.corporation.getDivision(DivisionName.TOBACCO),
+        ns.corporation.getCorporation().funds * 0.99 - 1e9,
+        defaultBudgetRatioForProductDivision,
+        false,
+        false
+    );
+    buyBoostMaterialsIfNeeded(DivisionName.TOBACCO);
+
     // noinspection InfiniteLoopJS
     while (true) {
         ++cycleCount;
         const corporation = ns.corporation.getCorporation();
+        const currentRound = ns.corporation.getInvestmentOffer().round;
         const profit = corporation.revenue - corporation.expenses;
-        console.log(`cycleCount: ${cycleCount}. Funds: ${ns.formatNumber(corporation.funds)}. Profit: ${ns.formatNumber(profit)}`);
+        console.log(
+            `cycleCount: ${cycleCount}. Funds: ${ns.formatNumber(corporation.funds)}. Profit: ${ns.formatNumber(profit)}`
+            + ((currentRound <= 4) ? `. Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}` : "")
+        );
 
         await buyResearch();
 
@@ -506,10 +518,12 @@ async function improveAllDivisions() {
             buyUpgrade(ns, UpgradeName.WILSON_ANALYTICS, maxWilsonLevel);
         }
 
-        if ((cycleCount % 10 === 0 || corporation.funds > profit * 1000)
+        const tobaccoHasRevenue = ns.corporation.getDivision(DivisionName.TOBACCO).lastCycleRevenue > 0;
+        if (tobaccoHasRevenue
+            && (cycleCount % 10 === 0 || corporation.funds > profit * (currentRound === 3 ? 1000 : 100))
             && !pendingImprovingDivisions.has(DivisionName.TOBACCO)) {
-            console.log(`cycleCount: ${cycleCount}, offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
             pendingImprovingDivisions.add(DivisionName.TOBACCO);
+            console.time(DivisionName.TOBACCO);
             improveProductDivision(
                 ns.corporation.getDivision(DivisionName.TOBACCO),
                 corporation.funds * 0.99,
@@ -517,24 +531,23 @@ async function improveAllDivisions() {
                 false,
                 false
             ).then(() => {
+                console.timeEnd(DivisionName.TOBACCO);
                 pendingImprovingDivisions.delete(DivisionName.TOBACCO);
-                ns.print(`Finish improving product division: ${DivisionName.TOBACCO}`);
                 buyBoostMaterialsIfNeeded(DivisionName.TOBACCO);
             });
         }
 
         let needToDevelopNewProduct = true;
         // In round 3 and 4, we only develop up to maxNumberOfProducts
-        const currentRound = ns.corporation.getInvestmentOffer().round;
+        let maxNumberOfProducts = maxNumberOfProductsInRound3;
+        if (currentRound === 4) {
+            maxNumberOfProducts = maxNumberOfProductsInRound4;
+        }
         if (currentRound === 3 || currentRound === 4) {
             const productIdArray = getProductIdArray(ns, DivisionName.TOBACCO);
             let numberOfDevelopedProducts = 0;
             if (productIdArray.length > 0) {
                 numberOfDevelopedProducts = Math.max(...productIdArray) + 1;
-            }
-            let maxNumberOfProducts = maxNumberOfProductsInRound3;
-            if (currentRound === 4) {
-                maxNumberOfProducts = maxNumberOfProductsInRound4;
             }
             if (numberOfDevelopedProducts >= maxNumberOfProducts) {
                 needToDevelopNewProduct = false;
@@ -550,10 +563,6 @@ async function improveAllDivisions() {
                     }
                 }
                 if (allProductsAreFinished) {
-                    // for (let i = 0; i < 30; i++) {
-                    //     console.log(`cycleCount: ${cycleCount}, offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
-                    //     await waitForNumberOfCycles(ns, 1);
-                    // }
                     await waitForNumberOfCycles(ns, 15);
                     ns.corporation.acceptInvestmentOffer();
                     continue;
@@ -569,44 +578,57 @@ async function improveAllDivisions() {
             );
         }
 
-        if (cycleCount % 20 === 0) {
-            // Use last cycle's profit to improve support divisions.
-            if (!pendingImprovingDivisions.has(DivisionName.AGRICULTURE)) {
-                pendingImprovingDivisions.add(DivisionName.AGRICULTURE);
-                improveSupportDivision(
-                    ns.corporation.getDivision(DivisionName.AGRICULTURE),
-                    Math.min(profit * 0.95, ns.corporation.getCorporation().funds),
-                    defaultBudgetRatioForSupportDivision,
-                    false,
-                    false
-                ).then(() => {
-                    pendingImprovingDivisions.delete(DivisionName.AGRICULTURE);
-                    ns.print(`Finish improving support division: ${DivisionName.AGRICULTURE}`);
-                    buyBoostMaterialsIfNeeded(DivisionName.AGRICULTURE);
-                });
-            }
-
-            if (!pendingImprovingDivisions.has(DivisionName.CHEMICAL)) {
-                pendingImprovingDivisions.add(DivisionName.CHEMICAL);
-                improveSupportDivision(
-                    ns.corporation.getDivision(DivisionName.CHEMICAL),
-                    Math.min(profit * 0.05, ns.corporation.getCorporation().funds),
-                    defaultBudgetRatioForSupportDivision,
-                    false,
-                    false
-                ).then(() => {
-                    pendingImprovingDivisions.delete(DivisionName.CHEMICAL);
-                    ns.print(`Finish improving support division: ${DivisionName.CHEMICAL}`);
-                    buyBoostMaterialsIfNeeded(DivisionName.CHEMICAL);
-                });
-            }
+        const forceToUpgradeAgriculture = (currentRound === 4) &&
+            (ns.corporation.getOfficeSizeUpgradeCost(DivisionName.AGRICULTURE, CityName.Sector12, 1)
+                < profit * 0.0001);
+        if (tobaccoHasRevenue
+            && (cycleCount % 20 === 0 || forceToUpgradeAgriculture)
+            && !pendingImprovingDivisions.has(DivisionName.AGRICULTURE)) {
+            pendingImprovingDivisions.add(DivisionName.AGRICULTURE);
+            console.log(`Upgrade ${DivisionName.AGRICULTURE}`);
+            console.time(DivisionName.AGRICULTURE);
+            improveSupportDivision(
+                ns.corporation.getDivision(DivisionName.AGRICULTURE),
+                Math.min(profit * 0.95, ns.corporation.getCorporation().funds),
+                defaultBudgetRatioForSupportDivision,
+                false,
+                false
+            ).then(() => {
+                console.timeEnd(DivisionName.AGRICULTURE);
+                pendingImprovingDivisions.delete(DivisionName.AGRICULTURE);
+                buyBoostMaterialsIfNeeded(DivisionName.AGRICULTURE);
+            });
+        }
+        const forceToUpgradeChemical = (currentRound === 4) &&
+            (ns.corporation.getOfficeSizeUpgradeCost(DivisionName.CHEMICAL, CityName.Sector12, 1)
+                < profit * 0.0001);
+        if (tobaccoHasRevenue
+            && (cycleCount % 20 === 0 || forceToUpgradeChemical)
+            && !pendingImprovingDivisions.has(DivisionName.CHEMICAL)) {
+            pendingImprovingDivisions.add(DivisionName.CHEMICAL);
+            console.log(`Upgrade ${DivisionName.CHEMICAL}`);
+            console.time(DivisionName.CHEMICAL);
+            improveSupportDivision(
+                ns.corporation.getDivision(DivisionName.CHEMICAL),
+                Math.min(profit * 0.05, ns.corporation.getCorporation().funds),
+                defaultBudgetRatioForSupportDivision,
+                false,
+                false
+            ).then(() => {
+                console.timeEnd(DivisionName.CHEMICAL);
+                pendingImprovingDivisions.delete(DivisionName.CHEMICAL);
+                buyBoostMaterialsIfNeeded(DivisionName.CHEMICAL);
+            });
         }
 
         await waitUntilAfterStateHappens(ns, CorpState.START);
     }
 }
 
-async function buyResearch() {
+async function buyResearch(): Promise<void> {
+    if (ns.corporation.getInvestmentOffer().round <= 3) {
+        return;
+    }
     const buyResearchLab = async (divisionName: string): Promise<{
         divisionName: string,
         officeSetups: OfficeSetup[]
@@ -706,6 +728,16 @@ async function buyResearch() {
     ]);
 }
 
+/**
+ * This function assumes that all city setups (office + warehouse) in the division are the same
+ *
+ * @param division
+ * @param totalBudget
+ * @param budgetRatio
+ * @param dryRun
+ * @param enableLogging
+ * @param customData
+ */
 async function improveSupportDivision(
     division: Division,
     totalBudget: number,
@@ -728,7 +760,11 @@ async function improveSupportDivision(
             }
         };
         advert: number;
-    }) {
+    }
+): Promise<void> {
+    if (totalBudget < 0) {
+        return;
+    }
     const logger = new Logger(enableLogging);
     const industryData = ns.corporation.getIndustryData(division.type);
     const currentFunds = ns.corporation.getCorporation().funds;
@@ -746,111 +782,121 @@ async function improveSupportDivision(
         } else {
             newWarehouseLevel = getMaxAffordableWarehouseLevel(currentWarehouseLevel, warehouseBudget);
         }
-        logger.log(`Division ${division.name}: currentWarehouseLevel: ${currentWarehouseLevel}, newWarehouseLevel: ${newWarehouseLevel}`);
         if (newWarehouseLevel > currentWarehouseLevel && !dryRun) {
             ns.corporation.upgradeWarehouse(division.name, city, newWarehouseLevel - currentWarehouseLevel);
         }
-        logger.log(`Division ${division.name}: currentWarehouseLevel: ${ns.corporation.getWarehouse(division.name, city).level}`);
+        logger.log(
+            `Division ${division.name}: currentWarehouseLevel: ${currentWarehouseLevel}, `
+            + `newWarehouseLevel: ${ns.corporation.getWarehouse(division.name, city).level}`
+        );
+    }
 
-        // Office
-        const office = ns.corporation.getOffice(division.name, city);
-        const maxOfficeSize = getMaxAffordableOfficeSize(office.size, officeBudget);
-        logger.log(`City: ${city}. currentOfficeSize: ${office.size}, maxOfficeSize: ${maxOfficeSize}`);
-        if (maxOfficeSize < 6) {
+    // We use Sector-12's office as the base to find the optimal setup for all cities' offices. This is not entirely
+    // accurate, because each office has different employee's stats. However, the optimal setup of each office won't be
+    // much different even with that concern.
+    const city = CityName.Sector12;
+    logger.city = city;
+    // Office
+    const office = ns.corporation.getOffice(division.name, city);
+    const maxOfficeSize = getMaxAffordableOfficeSize(office.size, officeBudget);
+    logger.log(`City: ${city}. currentOfficeSize: ${office.size}, maxOfficeSize: ${maxOfficeSize}`);
+    if (maxOfficeSize < 6) {
+        throw new Error(`Budget for office is too low. Division: ${division.name}. Office's budget: ${ns.formatNumber(officeBudget)}`);
+    }
+    // 80% of office employees are R&D
+    let minRnDEmployee: number;
+    if (maxOfficeSize <= 12) {
+        minRnDEmployee = 9;
+    } else {
+        minRnDEmployee = Math.ceil(maxOfficeSize * 0.8);
+    }
+    const officeSetup: OfficeSetup = {
+        city: city,
+        size: maxOfficeSize,
+        jobs: {
+            Operations: 0,
+            Engineer: 0,
+            Business: 0,
+            Management: 0,
+            "Research & Development": minRnDEmployee,
+        }
+    };
+    if (customData?.office) {
+        officeSetup.size = customData.office.size;
+        officeSetup.jobs = customData.office.jobs;
+    } else {
+        let item: Material;
+        switch (division.name) {
+            case DivisionName.AGRICULTURE:
+                item = ns.corporation.getMaterial(division.name, city, MaterialName.PLANTS);
+                break;
+            case DivisionName.CHEMICAL:
+                item = ns.corporation.getMaterial(division.name, city, MaterialName.CHEMICALS);
+                break;
+            default:
+                throw new Error(`Invalid division: ${division.name}`);
+        }
+        if (maxOfficeSize - minRnDEmployee < 3) {
             throw new Error(`Budget for office is too low. Division: ${division.name}. Office's budget: ${ns.formatNumber(officeBudget)}`);
         }
-        if (maxOfficeSize < office.size) {
-            continue;
-        }
-        // 80% of office employees are R&D
-        let minRnDEmployee: number;
-        if (maxOfficeSize <= 12) {
-            minRnDEmployee = 9;
-        } else {
-            minRnDEmployee = Math.ceil(maxOfficeSize * 0.8);
-        }
-        const officeSetup: OfficeSetup = {
-            city: city,
-            size: maxOfficeSize,
-            jobs: {
-                Operations: 0,
-                Engineer: 0,
-                Business: 0,
+        if (maxOfficeSize - minRnDEmployee === 3) {
+            officeSetup.jobs = {
+                Operations: 1,
+                Engineer: 1,
+                Business: 1,
                 Management: 0,
                 "Research & Development": minRnDEmployee,
-            }
-        };
-        if (customData?.office) {
-            officeSetup.size = customData.office.size;
-            officeSetup.jobs = customData.office.jobs;
+            };
         } else {
-            let item: Material;
-            switch (division.name) {
-                case DivisionName.AGRICULTURE:
-                    item = ns.corporation.getMaterial(division.name, city, MaterialName.PLANTS);
-                    break;
-                case DivisionName.CHEMICAL:
-                    item = ns.corporation.getMaterial(division.name, city, MaterialName.CHEMICALS);
-                    break;
-                default:
-                    throw new Error(`Invalid division: ${division.name}`);
-            }
-            if (maxOfficeSize - minRnDEmployee < 3) {
-                throw new Error(`Budget for office is too low. Division: ${division.name}. Office's budget: ${ns.formatNumber(officeBudget)}`);
-            }
-            if (maxOfficeSize - minRnDEmployee === 3) {
+            const dataArray = await optimizeOffice(
+                ns,
+                division,
+                industryData,
+                city,
+                maxOfficeSize - minRnDEmployee,
+                minRnDEmployee,
+                item,
+                "rawProduction",
+                0,
+                enableLogging
+            );
+            if (dataArray.length === 0) {
+                showWarning(
+                    ns,
+                    `Cannot calculate optimal office setup. Division: ${division.name}, `
+                    + `maxTotalEmployees: ${maxOfficeSize - minRnDEmployee}`
+                );
+                const operations = Math.floor(maxOfficeSize / 5);
+                const engineer = Math.floor(maxOfficeSize / 5);
+                const business = Math.floor(maxOfficeSize / 5);
+                const management = Math.floor(maxOfficeSize / 5);
+                const rnd = maxOfficeSize - (operations + engineer + business + management);
                 officeSetup.jobs = {
-                    Operations: 1,
-                    Engineer: 1,
-                    Business: 1,
-                    Management: 0,
-                    "Research & Development": minRnDEmployee,
+                    Operations: operations,
+                    Engineer: engineer,
+                    Business: business,
+                    Management: management,
+                    "Research & Development": rnd,
                 };
             } else {
-                const dataArray = await optimizeOffice(
-                    ns,
-                    division,
-                    industryData,
-                    city,
-                    maxOfficeSize - minRnDEmployee,
-                    minRnDEmployee,
-                    item,
-                    "rawProduction",
-                    0,
-                    enableLogging
-                );
-                if (dataArray.length === 0) {
-                    showWarning(
-                        ns,
-                        `Cannot calculate optimal office setup. Division: ${division.name}, `
-                        + `maxTotalEmployees: ${maxOfficeSize - minRnDEmployee}`
-                    );
-                    const operations = Math.floor(maxOfficeSize / 5);
-                    const engineer = Math.floor(maxOfficeSize / 5);
-                    const business = Math.floor(maxOfficeSize / 5);
-                    const management = Math.floor(maxOfficeSize / 5);
-                    const rnd = maxOfficeSize - (operations + engineer + business + management);
-                    officeSetup.jobs = {
-                        Operations: operations,
-                        Engineer: engineer,
-                        Business: business,
-                        Management: management,
-                        "Research & Development": rnd,
-                    };
-                } else {
-                    const optimalData = dataArray[dataArray.length - 1];
-                    officeSetup.jobs = {
-                        Operations: optimalData.operations,
-                        Engineer: optimalData.engineer,
-                        Business: optimalData.business,
-                        Management: optimalData.management,
-                        "Research & Development": minRnDEmployee,
-                    };
-                }
+                const optimalData = dataArray[dataArray.length - 1];
+                officeSetup.jobs = {
+                    Operations: optimalData.operations,
+                    Engineer: optimalData.engineer,
+                    Business: optimalData.business,
+                    Management: optimalData.management,
+                    "Research & Development": minRnDEmployee,
+                };
             }
-            logger.log("Optimal officeSetup:", JSON.stringify(officeSetup));
         }
-        officeSetups.push(officeSetup);
+        logger.log("Optimal officeSetup:", JSON.stringify(officeSetup));
+    }
+    for (const city of cities) {
+        officeSetups.push({
+            city: city,
+            size: officeSetup.size,
+            jobs: officeSetup.jobs
+        });
     }
     logger.city = undefined;
     if (!dryRun) {
@@ -866,7 +912,8 @@ function improveProductDivisionRawProduction(
     budget: number,
     dryRun: boolean,
     benchmark: CorporationBenchmark,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): void {
     const logger = new Logger(enableLogging);
     const dataArray = benchmark.optimizeStorageAndFactory(
         industryData,
@@ -906,7 +953,8 @@ function improveProductDivisionWilsonAdvert(
     budget: number,
     dryRun: boolean,
     benchmark: CorporationBenchmark,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): void {
     const logger = new Logger(enableLogging);
     const dataArray = benchmark.optimizeWilsonAndAdvert(
         industryData,
@@ -932,7 +980,8 @@ async function improveProductDivisionMainOffice(
     industryData: CorpIndustryData,
     budget: number,
     dryRun: boolean,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): Promise<void> {
     const logger = new Logger(enableLogging);
     const office = ns.corporation.getOffice(division.name, mainProductDevelopmentCity);
     const maxOfficeSize = getMaxAffordableOfficeSize(office.size, budget);
@@ -1016,7 +1065,8 @@ async function improveProductDivisionSupportOffices(
     division: Division,
     budget: number,
     dryRun: boolean,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): Promise<void> {
     const logger = new Logger(enableLogging);
     const officeSetups: OfficeSetup[] = [];
     for (const city of supportProductDevelopmentCities) {
@@ -1051,7 +1101,8 @@ async function improveProductDivisionOffices(
     industryData: CorpIndustryData,
     budget: number,
     dryRun: boolean,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): Promise<void> {
     await improveProductDivisionMainOffice(
         division,
         industryData,
@@ -1079,7 +1130,11 @@ async function improveProductDivision(
         projectInsight: number;
     },
     dryRun: boolean,
-    enableLogging: boolean) {
+    enableLogging: boolean
+): Promise<void> {
+    if (totalBudget < 0) {
+        return;
+    }
     const logger = new Logger(enableLogging);
     const industryData = ns.corporation.getIndustryData(division.type);
     const divisionResearches = getDivisionResearches(ns, division.name);
@@ -1180,7 +1235,7 @@ async function improveProductDivision(
     logger.log(`Spent: ${ns.formatNumber(currentFunds - ns.corporation.getCorporation().funds)}`);
 }
 
-async function test() {
+async function test(): Promise<void> {
 }
 
 export async function main(nsContext: NS): Promise<void> {
