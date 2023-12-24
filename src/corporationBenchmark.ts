@@ -1,9 +1,8 @@
 import {CorpIndustryData, Division, Material, Product} from "@ns";
 import * as comlink from "/libs/comlink";
-import {isProduct, Logger, getOptimalBoostMaterialQuantities} from "/corporationUtils";
+import {getOptimalBoostMaterialQuantities, getProductMarkup, isProduct, Logger} from "/corporationUtils";
 import {
-    getDivisionRawProduction,
-    getEmployeeProductionByJobs,
+    CityName,
     CorporationUpgradeLevels,
     DivisionResearches,
     formatNumber,
@@ -11,6 +10,8 @@ import {
     getAdvertisingFactors,
     getBusinessFactor,
     getDivisionProductionMultiplier,
+    getDivisionRawProduction,
+    getEmployeeProductionByJobs,
     getMarketFactor,
     getMaxAffordableAdVertLevel,
     getMaxAffordableUpgradeLevel,
@@ -75,6 +76,8 @@ export interface OfficeBenchmarkData {
     profit: number;
 }
 
+export type OfficeBenchmarkSortType = "rawProduction" | "optimalPrice" | "profit" | "progress" | "profit_progress";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getComparator(benchmarkType: BenchmarkType, sortType?: string): (a: any, b: any) => number {
     switch (benchmarkType) {
@@ -124,7 +127,7 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
                 if (sortType === "profit_progress") {
                     return (a.profit * a.productDevelopmentProgress) - (b.profit * b.productDevelopmentProgress);
                 }
-                return a.profit - b.profit;
+                throw new Error(`Invalid sort type: ${sortType}`);
             };
         default:
             throw new Error(`Invalid benchmark type`);
@@ -319,6 +322,7 @@ export class CorporationBenchmark {
         division: Division,
         industryData: CorpIndustryData,
         item: Material | Product,
+        useCurrentItemData: boolean,
         customData: {
             office: {
                 avgMorale: number;
@@ -379,7 +383,7 @@ export class CorporationBenchmark {
 
         let productDevelopmentProgress = 0;
         let estimatedRP = 0;
-        let productRating = 0;
+        let productEffectiveRating = 0;
         let productMarkup = 0;
         let demand: number;
         let competition: number;
@@ -400,144 +404,164 @@ export class CorporationBenchmark {
                 )
                 * managementFactor;
 
-            // Estimate RP gain
-            const cycles = 100 / productDevelopmentProgress;
-            const employeesProductionInSupportCities = getEmployeeProductionByJobs(
-                {
-                    // Reuse employees' stats of main office. This is fine because we only calculate the estimated value,
-                    // not the exact value.
-                    avgIntelligence: customData.office.avgIntelligence,
-                    avgCharisma: customData.office.avgCharisma,
-                    avgCreativity: customData.office.avgCreativity,
-                    avgEfficiency: customData.office.avgEfficiency,
-                    avgMorale: customData.office.avgMorale,
-                    avgEnergy: customData.office.avgEnergy,
-                    totalExperience: customData.office.totalExperience,
-                    employeeJobs: {
-                        operations: 1,
-                        engineer: 1,
-                        business: 1,
-                        management: 1,
-                        researchAndDevelopment: operations + engineer + business + management - 4,
-                        intern: 0,
-                        unassigned: 0
-                    }
-                },
-                customData.corporationUpgradeLevels,
-                customData.divisionResearches
-            );
-            const researchPointGainPerCycle =
-                5 // 5 support cities
-                * 4 * 0.004 * Math.pow(employeesProductionInSupportCities.researchAndDevelopmentProduction, 0.5)
-                * getUpgradeBenefit(UpgradeName.PROJECT_INSIGHT, customData.corporationUpgradeLevels[UpgradeName.PROJECT_INSIGHT])
-                * getResearchRPMultiplier(customData.divisionResearches);
-            estimatedRP = division.researchPoints + researchPointGainPerCycle * cycles;
+            if (!useCurrentItemData) {
+                // Estimate RP gain
+                const cycles = 100 / productDevelopmentProgress;
+                const employeesProductionInSupportCities = getEmployeeProductionByJobs(
+                    {
+                        // Reuse employees' stats of main office. This is fine because we only calculate the estimated value,
+                        // not the exact value.
+                        avgIntelligence: customData.office.avgIntelligence,
+                        avgCharisma: customData.office.avgCharisma,
+                        avgCreativity: customData.office.avgCreativity,
+                        avgEfficiency: customData.office.avgEfficiency,
+                        avgMorale: customData.office.avgMorale,
+                        avgEnergy: customData.office.avgEnergy,
+                        totalExperience: customData.office.totalExperience,
+                        employeeJobs: {
+                            operations: 1,
+                            engineer: 1,
+                            business: 1,
+                            management: 1,
+                            researchAndDevelopment: operations + engineer + business + management - 4,
+                            intern: 0,
+                            unassigned: 0
+                        }
+                    },
+                    customData.corporationUpgradeLevels,
+                    customData.divisionResearches
+                );
+                const researchPointGainPerCycle =
+                    5 // 5 support cities
+                    * 4 * 0.004 * Math.pow(employeesProductionInSupportCities.researchAndDevelopmentProduction, 0.5)
+                    * getUpgradeBenefit(UpgradeName.PROJECT_INSIGHT, customData.corporationUpgradeLevels[UpgradeName.PROJECT_INSIGHT])
+                    * getResearchRPMultiplier(customData.divisionResearches);
+                estimatedRP = division.researchPoints + researchPointGainPerCycle * cycles;
 
-            // Calculate product.stats
-            const productStats: Record<string, number> = {
-                quality: 0,
-                performance: 0,
-                durability: 0,
-                reliability: 0,
-                aesthetics: 0,
-                features: 0,
-            };
-            // If we assume that office setup does not change, we can use employeesProduction instead of creationJobFactors
-            const totalProduction =
-                employeesProduction.engineerProduction
-                + employeesProduction.managementProduction
-                + employeesProduction.researchAndDevelopmentProduction
-                + employeesProduction.operationsProduction
-                + employeesProduction.businessProduction;
+                // Calculate product.stats
+                const productStats: Record<string, number> = {
+                    quality: 0,
+                    performance: 0,
+                    durability: 0,
+                    reliability: 0,
+                    aesthetics: 0,
+                    features: 0,
+                };
+                // If we assume that office setup does not change, we can use employeesProduction instead of creationJobFactors
+                const totalProduction =
+                    employeesProduction.engineerProduction
+                    + employeesProduction.managementProduction
+                    + employeesProduction.researchAndDevelopmentProduction
+                    + employeesProduction.operationsProduction
+                    + employeesProduction.businessProduction;
 
-            const engineerRatio = employeesProduction.engineerProduction / totalProduction;
-            const managementRatio = employeesProduction.managementProduction / totalProduction;
-            const researchAndDevelopmentRatio = employeesProduction.researchAndDevelopmentProduction / totalProduction;
-            const operationsRatio = employeesProduction.operationsProduction / totalProduction;
-            const businessRatio = employeesProduction.businessProduction / totalProduction;
-            // Reuse designInvestment of latest product
-            const designInvestmentMultiplier = 1 + (Math.pow(item.designInvestment, 0.1)) / 100;
-            const scienceMultiplier = 1 + (Math.pow(estimatedRP, industryData.scienceFactor!)) / 800;
-            const balanceMultiplier =
-                1.2 * engineerRatio
-                + 0.9 * managementRatio
-                + 1.3 * researchAndDevelopmentRatio
-                + 1.5 * operationsRatio
-                + businessRatio;
-            const totalMultiplier = balanceMultiplier * designInvestmentMultiplier * scienceMultiplier;
-            productStats.quality = totalMultiplier * (
-                0.1 * employeesProduction.engineerProduction
-                + 0.05 * employeesProduction.managementProduction
-                + 0.05 * employeesProduction.researchAndDevelopmentProduction
-                + 0.02 * employeesProduction.operationsProduction
-                + 0.02 * employeesProduction.businessProduction
-            );
-            productStats.performance = totalMultiplier * (
-                0.15 * employeesProduction.engineerProduction
-                + 0.02 * employeesProduction.managementProduction
-                + 0.02 * employeesProduction.researchAndDevelopmentProduction
-                + 0.02 * employeesProduction.operationsProduction
-                + 0.02 * employeesProduction.businessProduction
-            );
-            productStats.durability = totalMultiplier * (
-                0.05 * employeesProduction.engineerProduction
-                + 0.02 * employeesProduction.managementProduction
-                + 0.08 * employeesProduction.researchAndDevelopmentProduction
-                + 0.05 * employeesProduction.operationsProduction
-                + 0.05 * employeesProduction.businessProduction
-            );
-            productStats.reliability = totalMultiplier * (
-                0.02 * employeesProduction.engineerProduction
-                + 0.08 * employeesProduction.managementProduction
-                + 0.02 * employeesProduction.researchAndDevelopmentProduction
-                + 0.05 * employeesProduction.operationsProduction
-                + 0.08 * employeesProduction.businessProduction
-            );
-            productStats.aesthetics = totalMultiplier * (
-                +0.08 * employeesProduction.managementProduction
-                + 0.05 * employeesProduction.researchAndDevelopmentProduction
-                + 0.02 * employeesProduction.operationsProduction
-                + 0.1 * employeesProduction.businessProduction
-            );
-            productStats.features = totalMultiplier * (
-                0.08 * employeesProduction.engineerProduction
-                + 0.05 * employeesProduction.managementProduction
-                + 0.02 * employeesProduction.researchAndDevelopmentProduction
-                + 0.05 * employeesProduction.operationsProduction
-                + 0.05 * employeesProduction.businessProduction
-            );
+                const engineerRatio = employeesProduction.engineerProduction / totalProduction;
+                const managementRatio = employeesProduction.managementProduction / totalProduction;
+                const researchAndDevelopmentRatio = employeesProduction.researchAndDevelopmentProduction / totalProduction;
+                const operationsRatio = employeesProduction.operationsProduction / totalProduction;
+                const businessRatio = employeesProduction.businessProduction / totalProduction;
+                // Reuse designInvestment of latest product
+                const designInvestmentMultiplier = 1 + (Math.pow(item.designInvestment, 0.1)) / 100;
+                const scienceMultiplier = 1 + (Math.pow(estimatedRP, industryData.scienceFactor!)) / 800;
+                const balanceMultiplier =
+                    1.2 * engineerRatio
+                    + 0.9 * managementRatio
+                    + 1.3 * researchAndDevelopmentRatio
+                    + 1.5 * operationsRatio
+                    + businessRatio;
+                const totalMultiplier = balanceMultiplier * designInvestmentMultiplier * scienceMultiplier;
+                productStats.quality = totalMultiplier * (
+                    0.1 * employeesProduction.engineerProduction
+                    + 0.05 * employeesProduction.managementProduction
+                    + 0.05 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.02 * employeesProduction.operationsProduction
+                    + 0.02 * employeesProduction.businessProduction
+                );
+                productStats.performance = totalMultiplier * (
+                    0.15 * employeesProduction.engineerProduction
+                    + 0.02 * employeesProduction.managementProduction
+                    + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.02 * employeesProduction.operationsProduction
+                    + 0.02 * employeesProduction.businessProduction
+                );
+                productStats.durability = totalMultiplier * (
+                    0.05 * employeesProduction.engineerProduction
+                    + 0.02 * employeesProduction.managementProduction
+                    + 0.08 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.05 * employeesProduction.operationsProduction
+                    + 0.05 * employeesProduction.businessProduction
+                );
+                productStats.reliability = totalMultiplier * (
+                    0.02 * employeesProduction.engineerProduction
+                    + 0.08 * employeesProduction.managementProduction
+                    + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.05 * employeesProduction.operationsProduction
+                    + 0.08 * employeesProduction.businessProduction
+                );
+                productStats.aesthetics = totalMultiplier * (
+                    +0.08 * employeesProduction.managementProduction
+                    + 0.05 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.02 * employeesProduction.operationsProduction
+                    + 0.1 * employeesProduction.businessProduction
+                );
+                productStats.features = totalMultiplier * (
+                    0.08 * employeesProduction.engineerProduction
+                    + 0.05 * employeesProduction.managementProduction
+                    + 0.02 * employeesProduction.researchAndDevelopmentProduction
+                    + 0.05 * employeesProduction.operationsProduction
+                    + 0.05 * employeesProduction.businessProduction
+                );
 
-            // Calculate product.rating
-            const weights = industryData.product!.ratingWeights;
-            for (const [statName, coefficient] of Object.entries(weights)) {
-                productRating += productStats[statName] * coefficient;
+                // Calculate product.rating
+                let productRating = 0;
+                const weights = industryData.product!.ratingWeights;
+                for (const [statName, coefficient] of Object.entries(weights)) {
+                    productRating += productStats[statName] * coefficient;
+                }
+
+                // If we assume that input materials' average quality is high enough, we can use productRating
+                // directly instead of having to calculate effectiveRating. Calculating effectiveRating is not important
+                // here because we only want to know the relative difference between different office setups.
+                productEffectiveRating = productRating;
+
+                // Calculate product.markup
+                // Reuse advertisingInvestment of latest product
+                const advertisingInvestmentMultiplier = 1 + (Math.pow(item.advertisingInvestment, 0.1)) / 100;
+                const businessManagementRatio = Math.max(
+                    businessRatio + managementRatio,
+                    1 / totalProduction
+                );
+                productMarkup = 100 / (
+                    advertisingInvestmentMultiplier * Math.pow(productStats.quality + 0.001, 0.65) * businessManagementRatio
+                );
+
+                // Calculate demand/competition
+                demand = division.awareness === 0
+                    ? 20
+                    : Math.min(
+                        100,
+                        advertisingInvestmentMultiplier * (100 * (division.popularity / division.awareness))
+                    );
+                // Hard-coded value of getRandomInt(0, 70). We don't want RNG here.
+                competition = 35;
+            } else {
+                productEffectiveRating = item.effectiveRating;
+                productMarkup = await getProductMarkup(
+                    division,
+                    industryData,
+                    CityName.Sector12,
+                    item,
+                    undefined
+                );
+                if (!item.demand || !item.competition) {
+                    throw new Error(`You need to unlock "Market Research - Demand" and "Market Data - Competition"`);
+                }
+                demand = item.demand;
+                competition = item.competition;
             }
 
-            // Calculate product.markup
-            // Reuse advertisingInvestment of latest product
-            const advertisingInvestmentMultiplier = 1 + (Math.pow(item.advertisingInvestment, 0.1)) / 100;
-            const businessManagementRatio = Math.max(
-                businessRatio + managementRatio,
-                1 / totalProduction
-            );
-            productMarkup = 100 / (
-                advertisingInvestmentMultiplier * Math.pow(productStats.quality + 0.001, 0.65) * businessManagementRatio
-            );
-
-            // Calculate demand/competition
-            demand = division.awareness === 0
-                ? 20
-                : Math.min(
-                    100,
-                    advertisingInvestmentMultiplier * (100 * (division.popularity / division.awareness))
-                );
-            // Hard-coded value of getRandomInt(0, 70). We don't want RNG here.
-            competition = 35;
-
-            // If we assume that input materials' average quality is high enough, we can use productRating
-            // directly instead of having to calculate effectiveRating.
-            itemMultiplier = 0.5 * Math.pow(productRating, 0.65);
-            markupLimit = Math.max(productRating, 0.001) / productMarkup;
+            itemMultiplier = 0.5 * Math.pow(productEffectiveRating, 0.65);
+            markupLimit = Math.max(productEffectiveRating, 0.001) / productMarkup;
             // Reuse marketPrice of latest product. productionCost only depends on input materials' market
             // price and coefficient.
             marketPrice = item.productionCost;
@@ -592,7 +616,7 @@ export class CorporationBenchmark {
             optimalPrice: optimalPrice,
             productDevelopmentProgress: productDevelopmentProgress,
             estimatedRP: estimatedRP,
-            productRating: productRating,
+            productRating: productEffectiveRating,
             productMarkup: productMarkup,
             profit: profit,
         };
@@ -616,6 +640,7 @@ export class CorporationBenchmark {
         rndJob: number,
         maxNonRnDEmployees: number,
         item: Material | Product,
+        useCurrentItemData: boolean,
         customData: {
             office: {
                 avgMorale: number;
@@ -630,7 +655,7 @@ export class CorporationBenchmark {
             divisionResearches: DivisionResearches,
             step?: number;
         },
-        sortType: string,
+        sortType: OfficeBenchmarkSortType,
         enableLogging = false
     ): Promise<{ step: number; data: OfficeBenchmarkData[]; }> {
         const salesBotUpgradeBenefit = getUpgradeBenefit(
@@ -663,6 +688,7 @@ export class CorporationBenchmark {
                         division,
                         industryData,
                         item,
+                        useCurrentItemData,
                         customData,
                         operations,
                         engineer,

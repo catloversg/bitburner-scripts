@@ -67,6 +67,7 @@ const costMultiplierForEmployeeStatsResearch = 5;
 const costMultiplierForProductionResearch = 10;
 
 export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
+    {research: ResearchName.HI_TECH_RND_LABORATORY, costMultiplier: 1},
     {research: ResearchName.AUTO_DRUG, costMultiplier: 13.5},
     {research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch},
     {research: ResearchName.OVERCLOCK, costMultiplier: costMultiplierForEmployeeStatsResearch},
@@ -581,7 +582,6 @@ export async function initDivision(ns: NS, divisionName: string, officeSize: num
             ns.corporation.setSmartSupply(divisionName, city, true);
         }
     }
-    await buyTeaAndThrowParty(ns, divisionName);
     return ns.corporation.getDivision(divisionName);
 }
 
@@ -1202,8 +1202,8 @@ export async function getProductMarkup(
     division: Division,
     industryData: CorpIndustryData,
     city: CityName,
-    office: Office,
-    item: Product
+    item: Product,
+    office?: Office
 ): Promise<number> {
     let productMarkup;
     const productMarkupKey = `${division.name}|${city}|${item.name}`;
@@ -1213,13 +1213,13 @@ export async function getProductMarkup(
             division.researchPoints,
             industryData.scienceFactor!,
             item,
-            {
+            (office) ? {
                 operationsProduction: office.employeeProductionByJob.Operations,
                 engineerProduction: office.employeeProductionByJob.Engineer,
                 businessProduction: office.employeeProductionByJob.Business,
                 managementProduction: office.employeeProductionByJob.Management,
                 researchAndDevelopmentProduction: office.employeeProductionByJob["Research & Development"],
-            }
+            } : undefined
         );
         productMarkupData.set(productMarkupKey, productMarkup);
     }
@@ -1273,8 +1273,8 @@ export async function getOptimalSellingPrice(
             division,
             industryData,
             city,
-            office,
-            item
+            item,
+            office
         );
         markupLimit = Math.max(item.effectiveRating, 0.001) / productMarkup;
         itemMultiplier = 0.5 * Math.pow(item.effectiveRating, 0.65);

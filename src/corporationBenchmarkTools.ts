@@ -1,7 +1,13 @@
 import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
-import {BenchmarkType, CorporationBenchmark, getComparator, OfficeBenchmarkData} from "/corporationBenchmark";
+import {
+    BenchmarkType,
+    CorporationBenchmark,
+    getComparator,
+    OfficeBenchmarkData,
+    OfficeBenchmarkSortType
+} from "/corporationBenchmark";
 import {calculateEmployeeStats, CityName, formatNumber, ResearchName} from "/corporationFormulas";
 import {getCorporationUpgradeLevels, getDivisionResearches, isProduct, Logger} from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
@@ -114,7 +120,8 @@ export async function optimizeOffice(
     maxNonRnDEmployees: number,
     rndJob: number,
     item: Material | Product,
-    sortType: "rawProduction" | "optimalPrice" | "profit" | "progress" | "profit_progress",
+    useCurrentItemData: boolean,
+    sortType: OfficeBenchmarkSortType,
     maxRerun = 1,
     enableLogging = false) {
     await validateWorkerModuleUrl(ns);
@@ -200,10 +207,10 @@ export async function optimizeOffice(
             `profit:${dataEntry.profit.toExponential(5)}, ` +
             `salesEfficiency: ${Math.min(dataEntry.maxSalesVolume / dataEntry.rawProduction, 1).toFixed(3)}`;
         if (isProduct(item)) {
-            message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}, `;
-            message += `, estimatedRP: ${formatNumber(dataEntry.estimatedRP)}, `;
-            message += `, rating: ${formatNumber(dataEntry.productRating)}, `;
-            message += `, markup: ${formatNumber(dataEntry.productMarkup)}, `;
+            message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}`;
+            message += `, estimatedRP: ${formatNumber(dataEntry.estimatedRP)}`;
+            message += `, rating: ${formatNumber(dataEntry.productRating)}`;
+            message += `, markup: ${formatNumber(dataEntry.productMarkup)}`;
             message += `, profit_progress: ${(dataEntry.profit * dataEntry.productDevelopmentProgress).toExponential(5)}}`;
         } else {
             message += "}";
@@ -250,6 +257,7 @@ export async function optimizeOffice(
             rndJob,
             maxNonRnDEmployees,
             item,
+            useCurrentItemData,
             customData,
             sortType
         ).then(result => {
@@ -261,20 +269,28 @@ export async function optimizeOffice(
             error = reason;
         });
     };
+    let operationsMax = max;
+    let engineerMin = min;
+    let managementMin = min;
+    if (sortType === "progress" || sortType === "profit_progress") {
+        operationsMax = Math.floor(maxNonRnDEmployees * 0.2);
+        engineerMin = Math.floor(maxNonRnDEmployees * 0.1);
+        managementMin = Math.floor(maxNonRnDEmployees * 0.25);
+    }
     await splitWorkload(
         ns,
         division.name,
         city,
         {
             min: min,
+            max: operationsMax
+        },
+        {
+            min: engineerMin,
             max: max
         },
         {
-            min: min,
-            max: max
-        },
-        {
-            min: min,
+            min: managementMin,
             max: max
         },
         workload,
@@ -303,16 +319,16 @@ export async function optimizeOffice(
             division.name,
             city,
             {
-                min: currentBestResult.operations - maxUsedStep,
-                max: currentBestResult.operations + maxUsedStep
+                min: Math.max(currentBestResult.operations - maxUsedStep, 1),
+                max: Math.min(currentBestResult.operations + maxUsedStep, maxNonRnDEmployees - 3)
             },
             {
-                min: currentBestResult.engineer - maxUsedStep,
-                max: currentBestResult.engineer + maxUsedStep
+                min: Math.max(currentBestResult.engineer - maxUsedStep, 1),
+                max: Math.min(currentBestResult.engineer + maxUsedStep, maxNonRnDEmployees - 3)
             },
             {
-                min: currentBestResult.management - maxUsedStep,
-                max: currentBestResult.management + maxUsedStep
+                min: Math.max(currentBestResult.management - maxUsedStep, 1),
+                max: Math.min(currentBestResult.management + maxUsedStep, maxNonRnDEmployees - 3)
             },
             workload,
             logger

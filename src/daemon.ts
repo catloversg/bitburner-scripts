@@ -75,8 +75,8 @@ export async function main(nsContext: NS): Promise<void> {
                             division,
                             industryData,
                             city,
-                            office,
-                            product
+                            product,
+                            office
                         );
                     }
                 });

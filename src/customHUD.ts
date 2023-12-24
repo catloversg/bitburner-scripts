@@ -59,7 +59,7 @@ declare global {
     };
     // eslint-disable-next-line no-var
     var saveObject: {
-        getSaveString: () => string
+        getSaveString: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => string
     };
 }
 
@@ -228,6 +228,12 @@ function createTestingTool() {
 
         const reloadSaveDataSelectElement = async () => {
             const keys = await getAllSaveDataKeys();
+            keys.sort((a, b) => {
+                if (a === "save") {
+                    return 1;
+                }
+                return b.toString().localeCompare(a.toString());
+            });
             savaDataSelectElement.innerHTML = "";
             for (const key of keys) {
                 const option = document.createElement("option");
@@ -395,12 +401,12 @@ function createTestingTool() {
                     return;
                 }
                 updateSaveData("save", saveString).then(() => {
-                    globalThis.location.reload();
+                    globalThis.setTimeout(() => globalThis.location.reload(), 1000);
                 });
             });
         });
         doc.getElementById("btn-export-save-data")!.addEventListener("click", function () {
-            insertSaveData(globalThis.saveObject.getSaveString()).then(() => {
+            insertSaveData(globalThis.saveObject.getSaveString(true, true)).then(() => {
                 reloadSaveDataSelectElement().then();
             });
         });
