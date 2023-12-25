@@ -98,6 +98,24 @@ export enum ResearchName {
     UPGRADE_FULCRUM = "uPgrade: Fulcrum",
 }
 
+export enum IndustryType {
+    WATER_UTILITIES = "Water Utilities",
+    SPRING_WATER = "Spring Water",
+    AGRICULTURE = "Agriculture",
+    FISHING = "Fishing",
+    MINING = "Mining",
+    REFINERY = "Refinery",
+    RESTAURANT = "Restaurant",
+    TOBACCO = "Tobacco",
+    CHEMICAL = "Chemical",
+    PHARMACEUTICAL = "Pharmaceutical",
+    COMPUTER_HARDWARE = "Computer Hardware",
+    ROBOTICS = "Robotics",
+    SOFTWARE = "Software",
+    HEALTHCARE = "Healthcare",
+    REAL_ESTATE = "Real Estate",
+}
+
 export interface OfficeSetupJobs {
     Operations: number;
     Engineer: number;
@@ -428,7 +446,8 @@ export function getDivisionRawProduction(
     },
     divisionProductionMultiplier: number,
     corporationUpgradeLevels: CorporationUpgradeLevels,
-    divisionResearches: DivisionResearches): number {
+    divisionResearches: DivisionResearches
+): number {
     const operationEmployeesProduction = employeesProduction.operationsProduction;
     const engineerEmployeesProduction = employeesProduction.engineerProduction;
     const managementEmployeesProduction = employeesProduction.managementProduction;
@@ -462,7 +481,17 @@ export function getDivisionRawProduction(
 
 function getUpgradeAndResearchMultiplierForEmployeeStats(
     corporationUpgradeLevels: CorporationUpgradeLevels,
-    divisionResearches: DivisionResearches) {
+    divisionResearches: DivisionResearches
+): {
+    researchCharismaMultiplier: number;
+    upgradeIntelligenceMultiplier: number;
+    upgradeCharismaMultiplier: number;
+    researchCreativityMultiplier: number;
+    researchEfficiencyMultiplier: number;
+    upgradeCreativityMultiplier: number;
+    researchIntelligenceMultiplier: number;
+    upgradeEfficiencyMultiplier: number;
+} {
     return {
         upgradeCreativityMultiplier: getUpgradeBenefit(
             UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS,
@@ -508,7 +537,13 @@ export function getEmployeeProductionByJobs(
     },
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches
-) {
+): {
+    managementProduction: number;
+    operationsProduction: number;
+    researchAndDevelopmentProduction: number;
+    engineerProduction: number;
+    businessProduction: number;
+} {
     const upgradeAndResearchMultiplier = getUpgradeAndResearchMultiplierForEmployeeStats(
         corporationUpgradeLevels,
         divisionResearches
@@ -566,10 +601,10 @@ export async function calculateEmployeeStats(
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches
 ): Promise<{
-    avgCreativity: number,
-    avgCharisma: number,
-    avgIntelligence: number,
-    avgEfficiency: number,
+    avgCreativity: number;
+    avgCharisma: number;
+    avgIntelligence: number;
+    avgEfficiency: number;
 }> {
     // In 5 jobs [OPERATIONS, ENGINEER, BUSINESS, MANAGEMENT, RESEARCH_DEVELOPMENT], we need at least 4 jobs having 1
     // employee at the minimum

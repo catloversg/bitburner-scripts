@@ -2,66 +2,13 @@ import {NS} from "@ns";
 import {NetscriptExtension} from "/libs/NetscriptExtension";
 import {DAEMON_SCRIPT_NAME} from "/libs/constants";
 import {parseNumber} from "/libs/utils";
-import {CityName, EmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
-import {getRecordEntries, PartialRecord} from "/libs/Record";
-import {CorpUpgradesData} from "/data/CorpUpgradesData";
-import {clearPurchaseOrders, clearStorage, DivisionName, hasDivision} from "/corporationUtils";
+import {UpgradeName} from "/corporationFormulas";
+import {clearPurchaseOrders, DivisionName, hasDivision} from "/corporationUtils";
+import * as testingTools from "/corporationTestingTools";
 
 let ns: NS;
 let nsx: NetscriptExtension;
 let doc: Document;
-
-interface Material {
-    name: MaterialName;
-    stored: number;
-}
-
-interface Office {
-    size: number;
-    numEmployees: number;
-    employeeNextJobs: {
-        Operations: number,
-        Engineer: number,
-        Business: number,
-        Management: number,
-        "Research & Development": number,
-        Intern: number,
-        Unassigned: number,
-        total: number
-    };
-}
-
-interface Warehouse {
-    materials: Record<MaterialName, Material>;
-    level: number;
-    updateSize: (corporation: Corporation, division: Division) => void;
-}
-
-interface Division {
-    name: string;
-    researchPoints: number;
-    requiredMaterials: PartialRecord<MaterialName, number>;
-    offices: PartialRecord<CityName, Office>;
-    warehouses: PartialRecord<CityName, Warehouse>;
-}
-
-interface Corporation {
-    funds: number;
-    storedCycles: number;
-    divisions: Division[];
-    upgrades: Record<UpgradeName, { level: number, value: number }>;
-}
-
-declare global {
-    // eslint-disable-next-line no-var
-    var Player: {
-        corporation: Corporation
-    };
-    // eslint-disable-next-line no-var
-    var saveObject: {
-        getSaveString: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => string
-    };
-}
 
 const enableTestingTools = true;
 let runCorpMaintain = false;
@@ -69,73 +16,9 @@ let runDelScripts = false;
 let reload = false;
 let runCorpRound = false;
 let runCorpTest = false;
-let importSave = false;
-let saveString = "";
-
-const indexDBObjectStore = "savestring";
 
 function rerun(ns: NS) {
     ns.spawn(ns.getScriptName(), {spawnDelay: 100});
-}
-
-async function getObjectStore(): Promise<IDBObjectStore> {
-    return new Promise((resolve, reject) => {
-        const request = window.indexedDB.open("bitburnerSave", 1);
-        request.onerror = () => {
-            console.error("Error occurred when interacting with IndexDB. Result:", request.result);
-            reject("Error occurred when interacting with IndexDB");
-        };
-        request.onsuccess = function (this: IDBRequest<IDBDatabase>) {
-            const db = this.result;
-            const objectStore = db.transaction([indexDBObjectStore], "readwrite").objectStore(indexDBObjectStore);
-            resolve(objectStore);
-        };
-    });
-}
-
-async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
-    return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
-            const requestGetAllKeys = objectStore.getAllKeys();
-            requestGetAllKeys.onsuccess = () => resolve(requestGetAllKeys.result);
-        });
-    });
-}
-
-async function getSaveData(key: string): Promise<string> {
-    return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
-            const requestGet = objectStore.get(key);
-            requestGet.onsuccess = () => resolve(requestGet.result as string);
-        });
-    });
-}
-
-async function insertSaveData(saveData: string): Promise<void> {
-    return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
-            const requestPut = objectStore.put(saveData, new Date().toISOString());
-            requestPut.onsuccess = () => resolve();
-        });
-    });
-}
-
-async function updateSaveData(key: string, saveData: string): Promise<void> {
-    return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
-            const requestPut = objectStore.put(saveData, key);
-            requestPut.onsuccess = () => resolve();
-        });
-    });
-}
-
-async function deleteSaveData(key: string): Promise<void> {
-    return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
-            const requestDelete = objectStore.delete(key);
-            requestDelete.onsuccess = () => resolve();
-        });
-    });
 }
 
 function createTestingTool() {
@@ -167,8 +50,8 @@ function createTestingTool() {
         <input id="testing-tools-input" type="text"/>
         <input id="testing-tools-file-input" type="file"/>
         <button id="btn-funds">Funds</button>
-        <button id="btn-smart-factories-level">SmartFactories</button>
-        <button id="btn-smart-storage-level">SmartStorage</button>
+        <button id="btn-smart-factories">SmartFactories</button>
+        <button id="btn-smart-storage">SmartStorage</button>
         <select id="select-save-data">
             <option value="current">Current</option>
         </select>
@@ -185,10 +68,11 @@ function createTestingTool() {
         </select>
         <button id="btn-rp">RP</button>
         <button id="btn-office">Office</button>
-        <button id="btn-warehouse-level">WarehouseLevel</button>
+        <button id="btn-warehouse">Warehouse</button>
         <button id="btn-boost-materials">BoostMats</button>
         <button id="btn-clear-boost-materials">ClearBoostMats</button>
         <button id="btn-clear-input-materials">ClearInputMats</button>
+        <button id="btn-clear-output-materials">ClearOutputMats</button>
         <button id="btn-clear-storage">ClearStorage</button>
     </div>
     <div>
@@ -227,7 +111,7 @@ function createTestingTool() {
         const savaDataSelectElement = doc.getElementById("select-save-data") as HTMLSelectElement;
 
         const reloadSaveDataSelectElement = async () => {
-            const keys = await getAllSaveDataKeys();
+            const keys = await testingTools.getAllSaveDataKeys();
             keys.sort((a, b) => {
                 if (a === "save") {
                     return 1;
@@ -248,10 +132,10 @@ function createTestingTool() {
             runCorpMaintain = true;
         });
         doc.getElementById("btn-unlimited-bonus-time")!.addEventListener("click", function () {
-            globalThis.Player.corporation.storedCycles = 1e9;
+            testingTools.setUnlimitedBonusTime();
         });
         doc.getElementById("btn-remove-bonus-time")!.addEventListener("click", function () {
-            globalThis.Player.corporation.storedCycles = 0;
+            testingTools.removeBonusTime();
         });
         doc.getElementById("btn-corp-round")!.addEventListener("click", function () {
             runCorpRound = true;
@@ -273,8 +157,19 @@ function createTestingTool() {
                     if (typeof result !== "string") {
                         throw new Error("FileReader event was not type string");
                     }
-                    saveString = result;
-                    importSave = true;
+
+                    const indexedDbRequest: IDBOpenDBRequest = window.indexedDB.open("bitburnerSave", 1);
+                    indexedDbRequest.onsuccess = function (this: IDBRequest<IDBDatabase>) {
+                        const db = this.result;
+                        if (!db) {
+                            throw new Error("Cannot access database");
+                        }
+                        const objectStore = db.transaction(["savestring"], "readwrite").objectStore("savestring");
+                        const request = objectStore.put(result, "save");
+                        request.onsuccess = () => {
+                            globalThis.location?.reload();
+                        };
+                    };
                 };
                 reader.readAsText(file);
             };
@@ -310,103 +205,36 @@ function createTestingTool() {
             }
             callback(value);
         };
-        const corporation = globalThis.Player.corporation;
-        const CorpUpgrades = CorpUpgradesData;
-        const setUpgradeLevel = function (upgradeName: UpgradeName, level: number) {
-            const corpUpgrades = getRecordEntries(corporation.upgrades);
-            for (const [corpUpgradeName, corpUpgradeInfo] of corpUpgrades) {
-                if (corpUpgradeName === upgradeName) {
-                    const upgradeData = CorpUpgrades[corpUpgradeName];
-                    corpUpgradeInfo.level = level;
-                    corpUpgradeInfo.value = 1 + upgradeData.benefit * level;
-                }
-
-                if (corpUpgradeName === UpgradeName.SMART_STORAGE) {
-                    for (const division of corporation.divisions.values()) {
-                        const warehouses = Object.values(division.warehouses);
-                        for (const warehouse of warehouses) {
-                            warehouse.updateSize(corporation, division);
-                        }
-                    }
-                }
-            }
-        };
         const getDivisionName = function (): string {
             return doc.querySelector<HTMLSelectElement>("#testing-tools-divisions")!.value;
         };
-        const getDivision = function (divisionName: string): Division {
-            for (const division of corporation.divisions.values()) {
-                if (division.name === divisionName) {
-                    return division;
-                }
-            }
-            throw new Error(`Invalid division: ${divisionName}`);
-        };
-        const setBoostMaterialsInWarehouse = function (division: Division, targetBoostMaterials: number[]) {
-            if (targetBoostMaterials.length !== 4) {
-                alert("Invalid input");
-                return;
-            }
-            const warehouses = Object.values(division.warehouses);
-            for (const warehouse of warehouses) {
-                const materials = Object.values(warehouse.materials);
-                for (const material of materials) {
-                    switch (material.name) {
-                        case MaterialName.AI_CORES:
-                            material.stored = targetBoostMaterials[0];
-                            break;
-                        case MaterialName.HARDWARE:
-                            material.stored = targetBoostMaterials[1];
-                            break;
-                        case MaterialName.REAL_ESTATE:
-                            material.stored = targetBoostMaterials[2];
-                            break;
-                        case MaterialName.ROBOTS:
-                            material.stored = targetBoostMaterials[3];
-                            break;
-                    }
-                }
-            }
-        };
-        const clearInputMaterialsInWarehouse = function (division: Division) {
-            const requiredMaterials = Object.keys(division.requiredMaterials);
-            const warehouses = Object.values(division.warehouses);
-            for (const warehouse of warehouses) {
-                const materials = Object.values(warehouse.materials);
-                for (const material of materials) {
-                    if (requiredMaterials.includes(material.name)) {
-                        material.stored = 0;
-                    }
-                }
-            }
-        };
         doc.getElementById("btn-funds")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                corporation.funds = inputValue;
+                testingTools.setFunds(inputValue);
             });
         });
-        doc.getElementById("btn-smart-factories-level")!.addEventListener("click", function () {
+        doc.getElementById("btn-smart-factories")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                setUpgradeLevel(UpgradeName.SMART_FACTORIES, inputValue);
+                testingTools.setUpgradeLevel(UpgradeName.SMART_FACTORIES, inputValue);
             });
         });
-        doc.getElementById("btn-smart-storage-level")!.addEventListener("click", function () {
+        doc.getElementById("btn-smart-storage")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                setUpgradeLevel(UpgradeName.SMART_STORAGE, inputValue);
+                testingTools.setUpgradeLevel(UpgradeName.SMART_STORAGE, inputValue);
             });
         });
         doc.getElementById("btn-import-save-data")!.addEventListener("click", function () {
-            getSaveData(savaDataSelectElement.value).then(saveString => {
+            testingTools.getSaveData(savaDataSelectElement.value).then(saveString => {
                 if (!saveString) {
                     return;
                 }
-                updateSaveData("save", saveString).then(() => {
+                testingTools.updateSaveData("save", saveString).then(() => {
                     globalThis.setTimeout(() => globalThis.location.reload(), 1000);
                 });
             });
         });
         doc.getElementById("btn-export-save-data")!.addEventListener("click", function () {
-            insertSaveData(globalThis.saveObject.getSaveString(true, true)).then(() => {
+            testingTools.insertSaveData(globalThis.saveObject.getSaveString(true, true)).then(() => {
                 reloadSaveDataSelectElement().then();
             });
         });
@@ -419,13 +247,13 @@ function createTestingTool() {
                 alert(`You cannot delete the built-in "save"`);
                 return;
             }
-            deleteSaveData(savaDataSelectElement.value).then(() => {
+            testingTools.deleteSaveData(savaDataSelectElement.value).then(() => {
                 reloadSaveDataSelectElement().then();
             });
         });
         doc.getElementById("btn-rp")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                getDivision(getDivisionName()).researchPoints = inputValue;
+                testingTools.setResearchPoints(getDivisionName(), inputValue);
             });
         });
         doc.getElementById("btn-office")!.addEventListener("click", function () {
@@ -437,52 +265,39 @@ function createTestingTool() {
                     alert("Invalid input");
                     return;
                 }
-                const size = employeeJobs.reduce((accumulator, current) => accumulator += current, 0);
-                const offices = Object.values(getDivision(getDivisionName()).offices);
-                for (const office of offices) {
-                    office.size = size;
-                    office.numEmployees = size;
-                    office.employeeNextJobs[EmployeePosition.OPERATIONS] = employeeJobs[0];
-                    office.employeeNextJobs[EmployeePosition.ENGINEER] = employeeJobs[1];
-                    office.employeeNextJobs[EmployeePosition.BUSINESS] = employeeJobs[2];
-                    office.employeeNextJobs[EmployeePosition.MANAGEMENT] = employeeJobs[3];
-                    office.employeeNextJobs[EmployeePosition.RESEARCH_DEVELOPMENT] = employeeJobs[4];
-                    office.employeeNextJobs[EmployeePosition.INTERN] = 0;
-                    office.employeeNextJobs[EmployeePosition.UNASSIGNED] = 0;
-                }
+                testingTools.setOfficeSetup(getDivisionName(), employeeJobs);
             });
         });
-        doc.getElementById("btn-warehouse-level")!.addEventListener("click", function () {
+        doc.getElementById("btn-warehouse")!.addEventListener("click", function () {
             useInputValueAsNumber((inputValue: number) => {
-                const division = getDivision(getDivisionName());
-                const warehouses = Object.values(division.warehouses);
-                for (const warehouse of warehouses) {
-                    warehouse.level = inputValue;
-                    warehouse.updateSize(corporation, division);
-                }
+                testingTools.setWarehouseLevel(getDivisionName(), inputValue);
             });
         });
         doc.getElementById("btn-boost-materials")!.addEventListener("click", function () {
             useInputValueAsString((inputValue: string) => {
-                const division = getDivision(getDivisionName());
-                const targetBoostMaterials: number[] = inputValue.trim().split(",")
+                const boostMaterials: number[] = inputValue.trim().split(",")
                     .map(value => parseNumber(value))
                     .filter(value => !Number.isNaN(value));
-                setBoostMaterialsInWarehouse(division, targetBoostMaterials);
+                if (boostMaterials.length !== 4) {
+                    alert("Invalid input");
+                    return;
+                }
+                testingTools.setBoostMaterials(getDivisionName(), boostMaterials);
             });
         });
         doc.getElementById("btn-clear-boost-materials")!.addEventListener("click", function () {
-            const division = getDivision(getDivisionName());
-            setBoostMaterialsInWarehouse(division, [0, 0, 0, 0]);
+            testingTools.setBoostMaterials(getDivisionName(), [0, 0, 0, 0]);
         });
         doc.getElementById("btn-clear-input-materials")!.addEventListener("click", function () {
-            const division = getDivision(getDivisionName());
-            clearInputMaterialsInWarehouse(division);
+            testingTools.clearMaterials(getDivisionName(), {input: true, output: false});
+        });
+        doc.getElementById("btn-clear-output-materials")!.addEventListener("click", function () {
+            testingTools.clearMaterials(getDivisionName(), {input: false, output: true});
         });
         doc.getElementById("btn-clear-storage")!.addEventListener("click", function () {
-            const division = getDivision(getDivisionName());
             clearPurchaseOrders(ns);
-            clearStorage(ns, division.name).then();
+            testingTools.setBoostMaterials(getDivisionName(), [0, 0, 0, 0]);
+            testingTools.clearMaterials(getDivisionName(), {input: true, output: true});
         });
     }
 }
@@ -591,56 +406,44 @@ export async function main(nsContext: NS): Promise<void> {
                     reload = false;
                 }
                 if (runCorpRound) {
-                    // if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
-                    //     ns.toast("Failed to run corporation.js --round2");
+                    // if (ns.exec("corporation.js", "home", 1, "--round1", "--benchmark") === 0) {
+                    //     ns.toast("Failed to run corporation.js --round1 --benchmark");
                     // }
-                    // if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
-                    //     ns.toast("Failed to run corporation.js --round3");
+                    // if (ns.exec("corporation.js", "home", 1, "--round2", "--benchmark") === 0) {
+                    //     ns.toast("Failed to run corporation.js --round2 --benchmark");
+                    // }
+                    // if (ns.exec("corporation.js", "home", 1, "--round3", "--benchmark") === 0) {
+                    //     ns.toast("Failed to run corporation.js --round3 --benchmark");
                     // }
                     if (!hasDivision(ns, DivisionName.CHEMICAL)) {
-                        if (ns.exec("corporation.js", "home", 1, "--round2") === 0) {
-                            ns.toast("Failed to run corporation.js --round2");
+                        if (ns.exec("corporation.js", "home", 1, "--round2", "--benchmark") === 0) {
+                            ns.toast("Failed to run corporation.js --round2 --benchmark");
                         }
                     } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
-                        if (ns.exec("corporation.js", "home", 1, "--round3") === 0) {
-                            ns.toast("Failed to run corporation.js --round3");
+                        if (ns.exec("corporation.js", "home", 1, "--round3", "--benchmark") === 0) {
+                            ns.toast("Failed to run corporation.js --round3 --benchmark");
                         }
                     } else {
-                        if (ns.exec("corporation.js", "home", 1, "--improveAllDivisions") === 0) {
-                            ns.toast("Failed to run corporation.js --improveAllDivisions");
+                        if (ns.exec("corporation.js", "home", 1, "--improveAllDivisions", "--benchmark") === 0) {
+                            ns.toast("Failed to run corporation.js --improveAllDivisions --benchmark");
                         }
                     }
                     runCorpRound = false;
                 }
                 if (runCorpTest) {
                     if (ns.exec("corporation.js", "home", 1, "--test") === 0) {
-                        ns.toast("Failed to run corporation.js --test");
+                        ns.toast("Failed to run corporation.js --test --benchmark");
                     }
                     runCorpTest = false;
                 }
-                if (importSave) {
-                    const indexedDbRequest: IDBOpenDBRequest = window.indexedDB.open("bitburnerSave", 1);
-                    indexedDbRequest.onsuccess = function (this: IDBRequest<IDBDatabase>) {
-                        const db = this.result;
-                        if (!db) {
-                            throw new Error("database loading result was undefined");
-                        }
-                        const objectStore = db.transaction(["savestring"], "readwrite").objectStore("savestring");
-                        const request = objectStore.put(saveString, "save");
-                        request.onsuccess = () => {
-                            globalThis.location?.reload();
-                        };
-                    };
-                    importSave = false;
-                }
             } else {
                 if (runCorpRound) {
-                    if (ns.exec("corporation.js", "home", 1, "--round1") === 0) {
-                        ns.toast("Failed to run corporation.js --round1");
+                    if (ns.exec("corporation.js", "home", 1, "--round1", "--benchmark") === 0) {
+                        ns.toast("Failed to run corporation.js --round1 --benchmark");
                     }
                     await ns.sleep(1000);
                     ns.exec("daemon.js", "home", 1, "--maintainCorporation");
-                    globalThis.Player.corporation.storedCycles = 1e9;
+                    testingTools.setUnlimitedBonusTime();
                     runCorpRound = false;
                 }
             }

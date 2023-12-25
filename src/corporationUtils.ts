@@ -27,6 +27,7 @@ import {
     getResearchRPMultiplier,
     getResearchSalesMultiplier,
     getUpgradeBenefit,
+    IndustryType,
     MaterialName,
     MaterialOrder,
     OfficeSetup,
@@ -88,6 +89,8 @@ export const researchPrioritiesForProductDivision: ResearchPriority[] = [
 ];
 
 export const exportString = "(IPROD+IINV/10)*(-1)";
+
+export const dummyDivisionNamePrefix = "z-";
 
 // Key: divisionName|city
 const smartSupplyData: Map<string, number> = new Map<string, number>();
@@ -169,6 +172,9 @@ export function showWarning(ns: NS, warningMessage: string): void {
 
 export function loopAllDivisionsAndCities(ns: NS, callback: (divisionName: string, city: CityName) => void): void {
     for (const division of ns.corporation.getCorporation().divisions) {
+        if (division.startsWith(dummyDivisionNamePrefix)) {
+            continue;
+        }
         for (const city of cities) {
             callback(division, city);
         }
@@ -180,6 +186,9 @@ export async function loopAllDivisionsAndCitiesAsyncCallback(
     callback: (divisionName: string, city: CityName) => Promise<void>
 ): Promise<void> {
     for (const division of ns.corporation.getCorporation().divisions) {
+        if (division.startsWith(dummyDivisionNamePrefix)) {
+            continue;
+        }
         for (const city of cities) {
             await callback(division, city);
         }
@@ -416,15 +425,6 @@ export function clearPurchaseOrders(ns: NS, clearInputMaterialOrders: boolean = 
     });
 }
 
-export async function clearStorage(ns: NS, divisionName: string): Promise<void> {
-    for (const city of cities) {
-        for (const materialName of Object.values(MaterialName)) {
-            ns.corporation.sellMaterial(divisionName, city, materialName, "MAX", "0");
-        }
-    }
-    await waitUntilAfterStateHappens(ns, CorpState.SALE);
-}
-
 export function generateMaterialsOrders(
     cities: CityName[],
     materials: {
@@ -541,7 +541,7 @@ export function getDivisionResearches(ns: NS, divisionName: string): DivisionRes
     return divisionResearches;
 }
 
-export async function initDivision(ns: NS, divisionName: string, officeSize: number, warehouseLevel: number): Promise<Division> {
+export async function createDivision(ns: NS, divisionName: string, officeSize: number, warehouseLevel: number): Promise<Division> {
     // Create division if not exists
     if (!hasDivision(ns, divisionName)) {
         ns.corporation.expandIndustry(<CorpIndustryName>divisionName, divisionName);
@@ -912,27 +912,27 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
 
 /**
  * @param ns
- * @param division
+ * @param divisionName
  * @param industryData
  * @param city
  * @param useWarehouseSize If false, function uses unused storage size after PRODUCTION state
  * @param ratio
  */
-export async function findOptimalBoostMaterialAmount(
+export async function findOptimalAmountOfBoostMaterials(
     ns: NS,
-    division: Division,
+    divisionName: string,
     industryData: CorpIndustryData,
     city: CityName,
     useWarehouseSize: boolean,
     ratio: number
 ): Promise<number[]> {
-    const warehouseSize = ns.corporation.getWarehouse(division.name, city).size;
+    const warehouseSize = ns.corporation.getWarehouse(divisionName, city).size;
     if (useWarehouseSize) {
         return getOptimalBoostMaterialQuantities(industryData, warehouseSize * ratio);
     }
     await waitUntilAfterStateHappens(ns, CorpState.PRODUCTION);
-    const availableSpace = ns.corporation.getWarehouse(division.name, city).size
-        - ns.corporation.getWarehouse(division.name, city).sizeUsed;
+    const availableSpace = ns.corporation.getWarehouse(divisionName, city).size
+        - ns.corporation.getWarehouse(divisionName, city).sizeUsed;
     return getOptimalBoostMaterialQuantities(industryData, availableSpace * ratio);
 }
 
@@ -1076,7 +1076,7 @@ export function developNewProduct(
     );
 }
 
-export function getLatestProductName(ns: NS, divisionName: string): string | null {
+export function getNewestProductName(ns: NS, divisionName: string): string | null {
     const products = ns.corporation.getDivision(divisionName).products;
     if (products.length === 0) {
         return null;
@@ -1431,4 +1431,15 @@ export function getProductMarketPrice(
         productMarketPrice += materialMarketPrice * materialCoefficient;
     }
     return productMarketPrice * productMarketPriceMultiplier;
+}
+
+export function createDummyDivisions(ns: NS, numberOfDivisions: number) {
+    const divisions = ns.corporation.getCorporation().divisions;
+    for (let i = 0; i < numberOfDivisions; i++) {
+        const dummyDivisionName = dummyDivisionNamePrefix + i.toString().padStart(2, "0");
+        if (divisions.includes(dummyDivisionName)) {
+            continue;
+        }
+        ns.corporation.expandIndustry(IndustryType.RESTAURANT, dummyDivisionName);
+    }
 }
