@@ -72,19 +72,8 @@ const PrecalculatedRound1Option = {
     },
 } as const;
 
-interface OfficeOption {
-    size: number;
-    operations: number;
-    engineer: number;
-    business: number;
-    management: number;
-    research: number;
-}
-
 interface Round2Option {
-    agriculture: {
-        office: OfficeOption;
-    };
+    numberOfDummyDivisions: number;
     waitForAgricultureRP: number;
     waitForChemicalRP: number;
 }
@@ -92,26 +81,13 @@ interface Round2Option {
 const PrecalculatedRound2Option = {
     // Minimum funds at start: 431b
     OPTION1: <Round2Option>{
-        agriculture: {
-            office: <OfficeOption>{
-                size: 6,
-                operations: 2,
-                engineer: 1,
-                business: 1,
-                management: 2,
-                research: 0,
-            },
-        },
+        numberOfDummyDivisions: 17,
         // 175-100
         // 245-150
         // 315-200
         // 390-250
-        // waitForAgricultureRP: 175,
-        // waitForChemicalRP: 100,
         waitForAgricultureRP: 245,
         waitForChemicalRP: 150,
-        // waitForAgricultureRP: 315,
-        // waitForChemicalRP: 200,
     }
 } as const;
 
@@ -269,9 +245,9 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         DivisionName.AGRICULTURE,
         generateOfficeSetups(
             cities,
-            option.agriculture.office.size,
+            6,
             [
-                {name: EmployeePosition.RESEARCH_DEVELOPMENT, count: option.agriculture.office.size}
+                {name: EmployeePosition.RESEARCH_DEVELOPMENT, count: 6}
             ]
         )
     );
@@ -292,7 +268,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
     }
 
     // Create dummy divisions
-    createDummyDivisions(ns, 18);
+    createDummyDivisions(ns, option.numberOfDummyDivisions);
 
     const dataArray = new CorporationBenchmark().optimizeStorageAndFactory(
         agricultureIndustryData,
@@ -352,13 +328,12 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         DivisionName.AGRICULTURE,
         generateOfficeSetups(
             cities,
-            option.agriculture.office.size,
+            6,
             [
-                {name: EmployeePosition.OPERATIONS, count: option.agriculture.office.operations},
-                {name: EmployeePosition.ENGINEER, count: option.agriculture.office.engineer},
-                {name: EmployeePosition.BUSINESS, count: option.agriculture.office.business},
-                {name: EmployeePosition.MANAGEMENT, count: option.agriculture.office.management},
-                {name: EmployeePosition.RESEARCH_DEVELOPMENT, count: option.agriculture.office.research}
+                {name: EmployeePosition.OPERATIONS, count: 2},
+                {name: EmployeePosition.ENGINEER, count: 1},
+                {name: EmployeePosition.BUSINESS, count: 1},
+                {name: EmployeePosition.MANAGEMENT, count: 2},
             ]
         )
     );
@@ -373,7 +348,6 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
                 {name: EmployeePosition.ENGINEER, count: 1},
                 {name: EmployeePosition.BUSINESS, count: 1},
                 {name: EmployeePosition.MANAGEMENT, count: 0},
-                {name: EmployeePosition.RESEARCH_DEVELOPMENT, count: 0}
             ]
         )
     );
@@ -433,10 +407,12 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     ns.print(`Use: ${JSON.stringify(option)}`);
 
     if (enableTestingTools) {
-        testingTools.setFunds(28e12);
+        globalThis.Player.corporation.cycleCount = 0;
+        globalThis.corporationCycleHistory = [];
+        testingTools.setFunds(27e12);
     }
     const startingBudget = ns.corporation.getCorporation().funds;
-    if (startingBudget < 10e12) {
+    if (startingBudget < 27e12) {
         throw new Error("Your budget is too low");
     }
 
@@ -448,7 +424,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     }
 
     // Create Tobacco division
-    await createDivision(ns, DivisionName.TOBACCO, 9, 1);
+    await createDivision(ns, DivisionName.TOBACCO, 3, 1);
 
     // Create dummy divisions
     createDummyDivisions(ns, 20 - ns.corporation.getCorporation().divisions.length);
@@ -469,25 +445,14 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     const chemicalDivision = ns.corporation.getDivision(DivisionName.CHEMICAL);
     const tobaccoDivision = ns.corporation.getDivision(DivisionName.TOBACCO);
 
+    const agricultureDivisionBudget = 500e9;
+    const chemicalDivisionBudget = 110e9;
+    const boostMaterialsBudget = 900e9;
+
     await improveProductDivision(
         DivisionName.TOBACCO,
-        ns.corporation.getCorporation().funds * 0.9,
-        false,
-        false
-    );
-
-    await improveSupportDivision(
-        DivisionName.AGRICULTURE,
-        500e9,
-        defaultBudgetRatioForSupportDivision,
-        false,
-        false
-    );
-
-    await improveSupportDivision(
-        DivisionName.CHEMICAL,
-        110e9,
-        defaultBudgetRatioForSupportDivision,
+        ns.corporation.getCorporation().funds * 0.99
+        - agricultureDivisionBudget - chemicalDivisionBudget - boostMaterialsBudget - 1e9,
         false,
         false
     );
@@ -497,6 +462,22 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
         DivisionName.TOBACCO,
         mainProductDevelopmentCity,
         1e9
+    );
+
+    await improveSupportDivision(
+        DivisionName.AGRICULTURE,
+        agricultureDivisionBudget,
+        defaultBudgetRatioForSupportDivision,
+        false,
+        false
+    );
+
+    await improveSupportDivision(
+        DivisionName.CHEMICAL,
+        chemicalDivisionBudget,
+        defaultBudgetRatioForSupportDivision,
+        false,
+        false
     );
 
     await Promise.allSettled([
@@ -512,8 +493,8 @@ async function improveAllDivisions(): Promise<void> {
     const maxNumberOfProductsInRound3 = 2;
     const maxNumberOfProductsInRound4 = 4;
     let cycleCount = 0;
-    if (globalThis.corporationCycleCount) {
-        cycleCount = globalThis.corporationCycleCount;
+    if (enableTestingTools) {
+        cycleCount = globalThis.Player.corporation.cycleCount;
     }
     const pendingImprovingDivisions = new Set<string>();
     const pendingBuyingBoostMaterialsDivisions = new Set<string>();
@@ -610,7 +591,11 @@ async function improveAllDivisions(): Promise<void> {
             if (numberOfDevelopedProducts >= maxNumberOfProducts) {
                 needToDevelopNewProduct = false;
 
-                // If all products are finished, we wait for 15 cycles, then accept investment offer
+                // If all products are finished, we wait for 15 cycles, then accept investment offer.
+                // We take a "snapshot" of product list here. When we use the standard setup, we use only 2 slots of
+                // products while waiting for offer. In that case, we can develop the next product while waiting, this
+                // "snapshot" ensures that the product list that we use to calculate the "profit" setup does not include
+                // the developing product.
                 const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
                 let allProductsAreFinished = true;
                 for (const productName of products) {
@@ -630,6 +615,13 @@ async function improveAllDivisions(): Promise<void> {
                     preparingToAcceptOffer = true;
                 }
                 if (allProductsAreFinished) {
+                    developNewProduct(
+                        ns,
+                        DivisionName.TOBACCO,
+                        mainProductDevelopmentCity,
+                        totalFunds * 0.01
+                    );
+
                     // Wait until newest product's effectiveRating is not 0
                     while (getNewestProduct().effectiveRating === 0) {
                         await waitForNumberOfCycles(ns, 1);
@@ -740,10 +732,10 @@ async function improveAllDivisions(): Promise<void> {
         }
 
         const mainOffice = ns.corporation.getOffice(DivisionName.TOBACCO, mainProductDevelopmentCity);
-        if (mainOffice.employeeJobs.Operations >= mainOffice.numEmployees * 0.19
-            || mainOffice.employeeJobs.Engineer <= mainOffice.numEmployees * 0.11
+        if (mainOffice.employeeJobs.Operations >= mainOffice.numEmployees * 0.14
+            || mainOffice.employeeJobs.Engineer >= mainOffice.numEmployees * 0.59
             || mainOffice.employeeJobs.Management <= mainOffice.numEmployees * 0.26
-            || mainOffice.employeeJobs.Management >= mainOffice.numEmployees * 0.64) {
+            || mainOffice.employeeJobs.Management >= mainOffice.numEmployees * 0.69) {
             console.error(
                 `cycle count: ${cycleCount}, numEmployees: ${mainOffice.numEmployees}, ` +
                 `employeeJobs: ${JSON.stringify(mainOffice.employeeJobs)}`

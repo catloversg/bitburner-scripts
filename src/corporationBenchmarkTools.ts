@@ -219,7 +219,7 @@ export async function optimizeOffice(
     };
 
     const min = 1;
-    const max = Math.floor(maxNonRnDEmployees * 0.65);
+    const max = Math.floor(maxNonRnDEmployees * 0.6);
     let maxUsedStep = 0;
     let error: unknown;
     const workload: Workload = async (
@@ -272,10 +272,12 @@ export async function optimizeOffice(
     let operationsMax = max;
     let engineerMin = min;
     let managementMin = min;
+    let managementMax = max;
     if (sortType === "progress" || sortType === "profit_progress") {
-        operationsMax = Math.floor(maxNonRnDEmployees * 0.2);
+        operationsMax = Math.floor(maxNonRnDEmployees * 0.15);
         engineerMin = Math.floor(maxNonRnDEmployees * 0.1);
         managementMin = Math.floor(maxNonRnDEmployees * 0.25);
+        managementMax = Math.floor(maxNonRnDEmployees * 0.7);
     }
     await splitWorkload(
         ns,
@@ -291,7 +293,7 @@ export async function optimizeOffice(
         },
         {
             min: managementMin,
-            max: max
+            max: managementMax
         },
         workload,
         logger

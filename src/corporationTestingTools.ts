@@ -13,7 +13,17 @@ declare global {
         getSaveString: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => string
     };
     // eslint-disable-next-line no-var
-    var corporationCycleCount: number | undefined;
+    var corporationCycleHistory: CycleData[];
+}
+
+interface CycleData {
+    cycle: number;
+    divisions: Corporation["divisions"];
+    funds: Corporation["funds"];
+    revenue: Corporation["revenue"];
+    expenses: Corporation["expenses"];
+    fundingRound: Corporation["fundingRound"];
+    upgrades: Corporation["upgrades"];
 }
 
 export interface Office {
@@ -55,9 +65,13 @@ export interface Division {
 
 export interface Corporation {
     funds: number;
+    revenue: number;
+    expenses: number;
+    fundingRound: number;
     storedCycles: number;
     divisions: Map<string, Division>;
     upgrades: Record<UpgradeName, { level: number, value: number }>;
+    cycleCount: number;
 }
 
 const indexDBObjectStore = "savestring";
