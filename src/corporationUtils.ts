@@ -85,7 +85,7 @@ export const researchPrioritiesForProductDivision: ResearchPriority[] = [
     ...researchPrioritiesForSupportDivision,
     {research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch},
     {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: 10},
-    {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: 10},
+    // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: 10},
 ];
 
 export const exportString = "(IPROD+IINV/10)*(-1)";
@@ -1013,7 +1013,7 @@ export function developNewProduct(
     divisionName: string,
     mainProductDevelopmentCity: CityName,
     productDevelopmentBudget: number
-): void {
+): string | null {
     const products = ns.corporation.getDivision(divisionName).products;
 
     let hasDevelopingProduct = false;
@@ -1042,7 +1042,7 @@ export function developNewProduct(
 
     // Do nothing if there is any developing product
     if (hasDevelopingProduct) {
-        return;
+        return null;
     }
     if (!bestProduct && products.length > 0) {
         throw new Error("Cannot find the best product");
@@ -1067,13 +1067,15 @@ export function developNewProduct(
     if (worstProduct && products.length === getMaxNumberOfProducts(ns, divisionName)) {
         ns.corporation.discontinueProduct(divisionName, worstProduct.name);
     }
+    const productName = generateNextProductName(ns, divisionName, productDevelopmentBudget);
     ns.corporation.makeProduct(
         divisionName,
         mainProductDevelopmentCity,
-        generateNextProductName(ns, divisionName, productDevelopmentBudget),
+        productName,
         productDevelopmentBudget / 2,
         productDevelopmentBudget / 2,
     );
+    return productName;
 }
 
 export function getNewestProductName(ns: NS, divisionName: string): string | null {

@@ -4,7 +4,9 @@ import {Remote} from "/libs/comlink";
 import {
     BenchmarkType,
     CorporationBenchmark,
+    defaultPerformanceModifierForOfficeBenchmark,
     getComparator,
+    minStepForOfficeBenchmark,
     OfficeBenchmarkData,
     OfficeBenchmarkSortType
 } from "/corporationBenchmark";
@@ -71,7 +73,7 @@ async function splitWorkload(
     const promises: Promise<void>[] = [];
     let current = operationsJob.min;
     const step = Math.floor((operationsJob.max - operationsJob.min) / numberOfThreads);
-    const loggerLabel = `Office benchmark execution time: ${divisionName}|${city}`;
+    const loggerLabel = `Office benchmark execution time: ${divisionName}|${city}|${Date.now()}`;
     logger.time(loggerLabel);
     for (let i = 0; i < numberOfThreads; ++i) {
         const from = current;
@@ -123,6 +125,7 @@ export async function optimizeOffice(
     useCurrentItemData: boolean,
     sortType: OfficeBenchmarkSortType,
     maxRerun = 1,
+    performanceModifier = defaultPerformanceModifierForOfficeBenchmark,
     enableLogging = false) {
     await validateWorkerModuleUrl(ns);
 
@@ -194,7 +197,8 @@ export async function optimizeOffice(
             totalExperience: totalExperience,
         },
         corporationUpgradeLevels: corporationUpgradeLevels,
-        divisionResearches: divisionResearches
+        divisionResearches: divisionResearches,
+        performanceModifier: performanceModifier
     };
     const printDataEntryLog = (dataEntry: OfficeBenchmarkData) => {
         let message = `{operations:${dataEntry.operations}, engineer:${dataEntry.engineer}, `
@@ -269,8 +273,10 @@ export async function optimizeOffice(
             error = reason;
         });
     };
+    let operationsMin = min;
     let operationsMax = max;
     let engineerMin = min;
+    let engineerMax = max;
     let managementMin = min;
     let managementMax = max;
     if (sortType === "progress" || sortType === "profit_progress") {
@@ -284,12 +290,12 @@ export async function optimizeOffice(
         division.name,
         city,
         {
-            min: min,
+            min: operationsMin,
             max: operationsMax
         },
         {
             min: engineerMin,
-            max: max
+            max: engineerMax
         },
         {
             min: managementMin,
@@ -309,7 +315,7 @@ export async function optimizeOffice(
         if (count >= maxRerun) {
             break;
         }
-        if (maxUsedStep === 1) {
+        if (maxUsedStep === minStepForOfficeBenchmark) {
             break;
         }
         logger.log("Rerun benchmark to get more accurate data");

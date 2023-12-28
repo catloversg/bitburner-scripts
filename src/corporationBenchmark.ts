@@ -137,6 +137,8 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string): 
 const awarenessMap = new Map<string, number>();
 const popularityMap = new Map<string, number>();
 const defaultLengthOfBenchmarkDataArray = 10;
+export const defaultPerformanceModifierForOfficeBenchmark = 40;
+export const minStepForOfficeBenchmark = 2;
 
 export class CorporationBenchmark {
     public getScriptUrl(): string {
@@ -651,9 +653,9 @@ export class CorporationBenchmark {
                 avgEfficiency: number,
                 totalExperience: number;
             },
-            corporationUpgradeLevels: CorporationUpgradeLevels,
-            divisionResearches: DivisionResearches,
-            step?: number;
+            corporationUpgradeLevels: CorporationUpgradeLevels;
+            divisionResearches: DivisionResearches;
+            performanceModifier?: number;
         },
         sortType: OfficeBenchmarkSortType,
         enableLogging = false
@@ -664,21 +666,35 @@ export class CorporationBenchmark {
         );
         const researchSalesMultiplier = getResearchSalesMultiplier(customData.divisionResearches);
 
-        let step = Math.max(
-            Math.floor((operationsJob.max - operationsJob.min) / 60),
-            Math.floor((engineerJob.max - engineerJob.min) / 60),
-            Math.floor((managementJob.max - managementJob.min) / 60),
-            1
-        );
-        if (customData.step) {
-            step = customData.step;
+        let performanceModifier = defaultPerformanceModifierForOfficeBenchmark;
+        if (customData.performanceModifier) {
+            performanceModifier = customData.performanceModifier;
         }
+        const operationsStep = Math.max(
+            Math.floor((operationsJob.max - operationsJob.min) / performanceModifier),
+            minStepForOfficeBenchmark
+        );
+        const engineerStep = Math.max(
+            Math.floor((engineerJob.max - engineerJob.min) / performanceModifier),
+            minStepForOfficeBenchmark
+        );
+        const managementStep = Math.max(
+            Math.floor((managementJob.max - managementJob.min) / performanceModifier),
+            minStepForOfficeBenchmark
+        );
+        let maxStep = Math.max(
+            operationsStep,
+            engineerStep,
+            managementStep,
+        );
 
         const comparator = getComparator(BenchmarkType.OFFICE, sortType);
         const priorityQueue = new PriorityQueue(comparator);
-        for (let operations = operationsJob.min; operations <= operationsJob.max; operations += step) {
-            for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += step) {
-                for (let management = managementJob.min; management <= managementJob.max; management += step) {
+        // We use maxStep for all loops instead of specific step for each loop to maximize performance. The result is
+        // still good enough.
+        for (let operations = operationsJob.min; operations <= operationsJob.max; operations += maxStep) {
+            for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += maxStep) {
+                for (let management = managementJob.min; management <= managementJob.max; management += maxStep) {
                     if (operations + engineer === 0
                         || operations + engineer + management >= maxNonRnDEmployees) {
                         continue;
@@ -709,7 +725,7 @@ export class CorporationBenchmark {
             }
         }
         return {
-            step: step,
+            step: maxStep,
             data: priorityQueue.toArray()
         };
     }

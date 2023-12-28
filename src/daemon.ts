@@ -14,9 +14,13 @@ import {
     setOptimalSellingPriceForEverything,
     setSmartSupplyData,
     showWarning,
-    validateProductMarkupMap
+    validateProductMarkupMap,
+    waitForNumberOfCycles,
+    waitUntilAfterStateHappens
 } from "/corporationUtils";
 import {CorpState, UnlockName} from "/corporationFormulas";
+import {isTestingToolsAvailable} from "/corporationTestingTools";
+import {corporationEventLogger} from "/corporationEventLogger";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -35,6 +39,25 @@ function init(nsContext: NS) {
     ns = nsContext;
 }
 
+async function collectCorporationEventLog() {
+    await waitUntilAfterStateHappens(ns, CorpState.START);
+    if (isTestingToolsAvailable()) {
+        corporationEventLogger.setCycle(globalThis.Player.corporation.cycleCount);
+    }
+    let reachProfitTarget = false;
+    // noinspection InfiniteLoopJS
+    while (true) {
+        corporationEventLogger.setCycle(corporationEventLogger.getCycle() + 1);
+        corporationEventLogger.generateDefaultEvent(ns);
+        const corporation = ns.corporation.getCorporation();
+        if (!reachProfitTarget && corporation.revenue - corporation.expenses >= 1e90) {
+            corporationEventLogger.saveEventSnapshotData();
+            reachProfitTarget = true;
+        }
+        await waitForNumberOfCycles(ns, 1);
+    }
+}
+
 export async function main(nsContext: NS): Promise<void> {
     init(nsContext);
     nsx = new NetscriptExtension(ns);
@@ -47,6 +70,7 @@ export async function main(nsContext: NS): Promise<void> {
     ns.clearLog();
 
     if (config.maintainCorporation === true && ns.corporation.hasCorporation()) {
+        collectCorporationEventLog().then();
         clearPurchaseOrders(ns);
 
         // Clear purchase orders when script exits
