@@ -415,7 +415,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     if (enableTestingTools) {
         globalThis.Player.corporation.cycleCount = 0;
         globalThis.corporationCycleHistory = [];
-        corporationEventLogger.setCycle(0);
+        corporationEventLogger.cycle = 0;
         corporationEventLogger.clearEventData();
         testingTools.setFunds(27e12);
     }
@@ -501,7 +501,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
 async function improveAllDivisions(): Promise<void> {
     const maxNumberOfProductsInRound3 = 2;
     const maxNumberOfProductsInRound4 = 4;
-    let cycleCount = corporationEventLogger.getCycle();
+    let cycleCount = corporationEventLogger.cycle;
     // This is used for calling improveProductDivision with skipUpgradingOffice = true
     const pendingImprovingProductDivisions1 = new Set<string>();
     // This is used for manually calling improveProductDivisionOffices
@@ -807,7 +807,7 @@ async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, new
         "profit",
         0, // Do not rerun
         20, // Half of defaultPerformanceModifierForOfficeBenchmark
-        true
+        false
     );
     const optimalData = dataArray[dataArray.length - 1];
     console.log(`Optimize all offices for "profit"`, optimalData);
@@ -829,7 +829,7 @@ async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, new
         ]
     );
     // Reuse the ratio of main office. This is not entirely correct, but it's still good enough. We do
-    // this to reduce the computing time needed to find and switch the optimal office setups.
+    // this to reduce the computing time needed to find and switch to the optimal office setups.
     for (const city of supportProductDevelopmentCities) {
         const office = ns.corporation.getOffice(DivisionName.TOBACCO, city);
         const operations = Math.max(

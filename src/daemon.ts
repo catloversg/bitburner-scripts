@@ -19,7 +19,6 @@ import {
     waitUntilAfterStateHappens
 } from "/corporationUtils";
 import {CorpState, UnlockName} from "/corporationFormulas";
-import {isTestingToolsAvailable} from "/corporationTestingTools";
 import {corporationEventLogger} from "/corporationEventLogger";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -39,15 +38,12 @@ function init(nsContext: NS) {
     ns = nsContext;
 }
 
-async function collectCorporationEventLog() {
+async function collectCorporationEventLog(): Promise<void> {
     await waitUntilAfterStateHappens(ns, CorpState.START);
-    if (isTestingToolsAvailable()) {
-        corporationEventLogger.setCycle(globalThis.Player.corporation.cycleCount);
-    }
     let reachProfitTarget = false;
     // noinspection InfiniteLoopJS
     while (true) {
-        corporationEventLogger.setCycle(corporationEventLogger.getCycle() + 1);
+        corporationEventLogger.cycle = corporationEventLogger.cycle + 1;
         corporationEventLogger.generateDefaultEvent(ns);
         const corporation = ns.corporation.getCorporation();
         if (!reachProfitTarget && corporation.revenue - corporation.expenses >= 1e90) {

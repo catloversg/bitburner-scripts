@@ -184,7 +184,7 @@ const basicFormatter = new Intl.NumberFormat(
 const exponentialFormatter = new Intl.NumberFormat(
     "en",
     {
-        notation: "engineering"
+        notation: "scientific"
     }
 );
 

@@ -37,6 +37,20 @@ export function mapToJson(map: Map<unknown, unknown>): string {
     return JSON.stringify(map, (_key, value) => (value instanceof Map ? [...value] : value));
 }
 
+export function downloadData(data: string, filename: string = Date.now().toString()) {
+    const file = new Blob([data], {type: "text/plain"});
+    const element = document.createElement("a");
+    const url = URL.createObjectURL(file);
+    element.href = url;
+    element.download = filename;
+    document.body.appendChild(element);
+    element.click();
+    setTimeout(function () {
+        document.body.removeChild(element);
+        window.URL.revokeObjectURL(url);
+    }, 0);
+}
+
 //-------------------------------------------------- Random functions --------------------------------------------------
 // Ref 1: https://dimitri.xyz/random-ints-from-random-bits/
 // Ref 2: https://github.com/nodejs/node/blob/main/lib/internal/crypto/random.js
