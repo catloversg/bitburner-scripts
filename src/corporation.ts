@@ -455,6 +455,11 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     const chemicalDivisionBudget = 110e9;
     const boostMaterialsBudget = 900e9;
 
+    // division.productionMult is 0 when division is created. It will be updated in next state.
+    if (ns.corporation.getDivision(DivisionName.TOBACCO).productionMult === 0) {
+        await ns.corporation.nextUpdate();
+    }
+
     await improveProductDivision(
         DivisionName.TOBACCO,
         ns.corporation.getCorporation().funds * 0.99
@@ -940,11 +945,11 @@ async function improveSupportDivision(
     if (maxOfficeSize < 9) {
         throw new Error(`Budget for office is too low. Division: ${divisionName}. Office's budget: ${ns.formatNumber(officeBudget)}`);
     }
-    let rndJob = Math.min(
+    let rndEmployee = Math.min(
         Math.floor(maxOfficeSize * 0.2),
         maxOfficeSize - 3
     );
-    const maxNonRnDEmployees = maxOfficeSize - rndJob;
+    const nonRnDEmployees = maxOfficeSize - rndEmployee;
     const officeSetup: OfficeSetup = {
         city: city,
         size: maxOfficeSize,
@@ -953,7 +958,7 @@ async function improveSupportDivision(
             Engineer: 0,
             Business: 0,
             Management: 0,
-            "Research & Development": rndJob,
+            "Research & Development": rndEmployee,
         }
     };
     let item: Material;
@@ -967,7 +972,7 @@ async function improveSupportDivision(
         default:
             throw new Error(`Invalid division: ${divisionName}`);
     }
-    if (maxNonRnDEmployees <= 3) {
+    if (nonRnDEmployees <= 3) {
         throw new Error("Invalid R&D ratio");
     }
     const division = ns.corporation.getDivision(divisionName);
@@ -977,8 +982,8 @@ async function improveSupportDivision(
         division,
         industryData,
         city,
-        maxNonRnDEmployees,
-        rndJob,
+        nonRnDEmployees,
+        rndEmployee,
         item,
         true,
         "rawProduction",
@@ -986,12 +991,12 @@ async function improveSupportDivision(
         20, // Half of defaultPerformanceModifierForOfficeBenchmark
         enableLogging,
         {
-            engineer: Math.floor(maxNonRnDEmployees * 0.625),
+            engineer: Math.floor(nonRnDEmployees * 0.625),
             business: 0
         }
     );
     if (dataArray.length === 0) {
-        throw new Error(`Cannot calculate optimal office setup. Division: ${divisionName}, maxNonRnDEmployees: ${maxNonRnDEmployees}`);
+        throw new Error(`Cannot calculate optimal office setup. Division: ${divisionName}, maxNonRnDEmployees: ${nonRnDEmployees}`);
     } else {
         const optimalData = dataArray[dataArray.length - 1];
         officeSetup.jobs = {
@@ -999,7 +1004,7 @@ async function improveSupportDivision(
             Engineer: optimalData.engineer,
             Business: optimalData.business,
             Management: optimalData.management,
-            "Research & Development": rndJob,
+            "Research & Development": rndEmployee,
         };
     }
     logger.log("Optimal officeSetup:", JSON.stringify(officeSetup));

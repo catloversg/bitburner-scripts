@@ -129,8 +129,8 @@ export async function optimizeOffice(
     division: Division,
     industryData: CorpIndustryData,
     city: CityName,
-    maxNonRnDEmployees: number,
-    rndJob: number,
+    nonRnDEmployees: number,
+    rndEmployee: number,
     item: Material | Product,
     useCurrentItemData: boolean,
     sortType: OfficeBenchmarkSortType,
@@ -154,16 +154,16 @@ export async function optimizeOffice(
     const corporationUpgradeLevels = getCorporationUpgradeLevels(ns);
     const divisionResearches = getDivisionResearches(ns, division.name);
 
-    if (maxNonRnDEmployees < 4) {
-        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxNonRnDEmployees}`);
+    if (nonRnDEmployees < 4) {
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${nonRnDEmployees}`);
     }
 
     const numberOfNewEmployees =
-        maxNonRnDEmployees
-        + rndJob
+        nonRnDEmployees
+        + rndEmployee
         - office.numEmployees;
     if (numberOfNewEmployees < 0) {
-        throw new Error(`Invalid employees' data. maxTotalEmployees: ${maxNonRnDEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
+        throw new Error(`Invalid employees' data. maxTotalEmployees: ${nonRnDEmployees}, numberOfNewEmployees: ${numberOfNewEmployees}`);
     }
     const totalExperience = office.totalExperience + 75 * numberOfNewEmployees;
     // Calculate avgStats based on current office data
@@ -241,19 +241,19 @@ export async function optimizeOffice(
     const referenceData = await getReferenceData(
         division,
         industryData,
-        maxNonRnDEmployees,
+        nonRnDEmployees,
         item,
         useCurrentItemData,
         customData
     );
 
-    // maxNonRnDEmployeesWithRequirement is only used for calculating min/max
-    let maxNonRnDEmployeesWithRequirement = maxNonRnDEmployees;
+    // nonRnDEmployeesWithRequirement is only used for calculating min/max
+    let nonRnDEmployeesWithRequirement = nonRnDEmployees;
     if (employeeJobsRequirement) {
-        maxNonRnDEmployeesWithRequirement = maxNonRnDEmployees - employeeJobsRequirement.engineer - employeeJobsRequirement.business;
+        nonRnDEmployeesWithRequirement = nonRnDEmployees - employeeJobsRequirement.engineer - employeeJobsRequirement.business;
     }
     const min = 1;
-    const max = Math.floor(maxNonRnDEmployeesWithRequirement * 0.6);
+    const max = Math.floor(nonRnDEmployeesWithRequirement * 0.6);
     let maxUsedStep = 0;
     let error: unknown;
     const workload: Workload = async (
@@ -288,8 +288,8 @@ export async function optimizeOffice(
                 min: managementJob.min,
                 max: managementJob.max
             },
-            rndJob,
-            maxNonRnDEmployees, // Do not use maxNonRnDEmployeesWithRequirement
+            rndEmployee,
+            nonRnDEmployees, // Do not use nonRnDEmployeesWithRequirement
             item,
             useCurrentItemData,
             customData,
@@ -302,7 +302,8 @@ export async function optimizeOffice(
             data.push(...result.data);
             worker.terminate();
         }).catch(reason => {
-            logger.error(reason);
+            // Bypass usage of logger
+            console.error(reason);
             error = reason;
         });
     };
@@ -313,10 +314,10 @@ export async function optimizeOffice(
     let managementMin = min;
     let managementMax = max;
     // if (sortType === "progress" || sortType === "profit_progress") {
-    //     operationsMax = Math.floor(maxNonRnDEmployeesWithRequirement * 0.15);
-    //     engineerMin = Math.floor(maxNonRnDEmployeesWithRequirement * 0.1);
-    //     managementMin = Math.floor(maxNonRnDEmployeesWithRequirement * 0.25);
-    //     managementMax = Math.floor(maxNonRnDEmployeesWithRequirement * 0.7);
+    //     operationsMax = Math.floor(nonRnDEmployeesWithRequirement * 0.15);
+    //     engineerMin = Math.floor(nonRnDEmployeesWithRequirement * 0.1);
+    //     managementMin = Math.floor(nonRnDEmployeesWithRequirement * 0.25);
+    //     managementMax = Math.floor(nonRnDEmployeesWithRequirement * 0.7);
     // }
     if (employeeJobsRequirement) {
         engineerMin = employeeJobsRequirement.engineer;
@@ -359,9 +360,9 @@ export async function optimizeOffice(
         const currentBestResult = data[data.length - 1];
         logger.log("Current best result:");
         printDataEntryLog(currentBestResult);
-        // Do not use maxNonRnDEmployeesWithRequirement in following calculations
+        // Do not use nonRnDEmployeesWithRequirement in following calculations
         let newEngineerMin = Math.max(currentBestResult.engineer - maxUsedStep, 1);
-        let newEngineerMax = Math.min(currentBestResult.engineer + maxUsedStep, maxNonRnDEmployees - 3);
+        let newEngineerMax = Math.min(currentBestResult.engineer + maxUsedStep, nonRnDEmployees - 3);
         if (employeeJobsRequirement) {
             newEngineerMin = employeeJobsRequirement.engineer;
             newEngineerMax = employeeJobsRequirement.engineer;
@@ -372,7 +373,7 @@ export async function optimizeOffice(
             city,
             {
                 min: Math.max(currentBestResult.operations - maxUsedStep, 1),
-                max: Math.min(currentBestResult.operations + maxUsedStep, maxNonRnDEmployees - 3)
+                max: Math.min(currentBestResult.operations + maxUsedStep, nonRnDEmployees - 3)
             },
             {
                 min: newEngineerMin,
@@ -380,7 +381,7 @@ export async function optimizeOffice(
             },
             {
                 min: Math.max(currentBestResult.management - maxUsedStep, 1),
-                max: Math.min(currentBestResult.management + maxUsedStep, maxNonRnDEmployees - 3)
+                max: Math.min(currentBestResult.management + maxUsedStep, nonRnDEmployees - 3)
             },
             workload,
             logger

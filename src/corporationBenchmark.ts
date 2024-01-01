@@ -731,8 +731,8 @@ export class CorporationBenchmark {
             min: number;
             max: number;
         },
-        rndJob: number,
-        maxNonRnDEmployees: number,
+        rndEmployee: number,
+        nonRnDEmployees: number,
         item: Material | Product,
         useCurrentItemData: boolean,
         customData: OfficeBenchmarkCustomData,
@@ -777,11 +777,11 @@ export class CorporationBenchmark {
             for (let engineer = engineerJob.min; engineer <= engineerJob.max; engineer += maxStep) {
                 for (let management = managementJob.min; management <= managementJob.max; management += maxStep) {
                     if (operations + engineer === 0
-                        || operations + engineer + management >= maxNonRnDEmployees) {
+                        || operations + engineer + management >= nonRnDEmployees) {
                         continue;
                     }
                     let effectiveEngineer = engineer;
-                    let business = maxNonRnDEmployees - (operations + engineer + management);
+                    let business = nonRnDEmployees - (operations + engineer + management);
                     if (employeeJobsRequirement) {
                         // Currently, we only set employeeJobsRequirement when we find optimal setup for support divisions.
                         // In this case, employeeJobsRequirement.business is always 0.
@@ -803,7 +803,7 @@ export class CorporationBenchmark {
                         effectiveEngineer,
                         business,
                         management,
-                        rndJob,
+                        rndEmployee,
                         salesBotUpgradeBenefit,
                         researchSalesMultiplier,
                         enableLogging
