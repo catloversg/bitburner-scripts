@@ -456,7 +456,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     const boostMaterialsBudget = 900e9;
 
     // division.productionMult is 0 when division is created. It will be updated in next state.
-    if (ns.corporation.getDivision(DivisionName.TOBACCO).productionMult === 0) {
+    while (ns.corporation.getDivision(DivisionName.TOBACCO).productionMult === 0) {
         await ns.corporation.nextUpdate();
     }
 
