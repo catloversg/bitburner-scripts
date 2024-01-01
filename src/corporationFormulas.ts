@@ -408,16 +408,28 @@ function getEffectWithFactors(n: number, expFac: number, linearFac: number): num
     return Math.pow(n, expFac) + n / linearFac;
 }
 
-// src\Corporation\Division.ts
-// Return a factor based on the office's Business employees that affects sales
+/**
+ * src\Corporation\Division.ts
+ *
+ * Return a factor based on the office's Business employees that affects sales
+ *
+ * @param businessProduction
+ */
 export function getBusinessFactor(businessProduction: number): number {
     return getEffectWithFactors(1 + businessProduction, 0.26, 10e3);
 }
 
-// src\Corporation\Division.ts
-// Return a set of factors based on the division's awareness, popularity, and Industry's advertisingFactor. The first
-// factor affects sales. The result is:
-// [Sales factor, awareness factor, popularity factor, popularity/awareness ratio factor]
+/**
+ * src\Corporation\Division.ts
+ *
+ * Return a set of factors based on the division's awareness, popularity, and Industry's advertisingFactor. The first
+ * factor affects sales. The result is:
+ * [Sales factor, awareness factor, popularity factor, popularity/awareness ratio factor]
+ *
+ * @param awareness
+ * @param popularity
+ * @param industryAdvertisingFactor
+ */
 export function getAdvertisingFactors(awareness: number, popularity: number, industryAdvertisingFactor: number): [
     totalFactor: number,
     awarenessFactor: number,
@@ -431,8 +443,14 @@ export function getAdvertisingFactors(awareness: number, popularity: number, ind
     return [salesFactor, awarenessFactor, popularityFactor, ratioFactor];
 }
 
-// src\Corporation\Division.ts
-// Return a factor based on demand and competition that affects sales
+/**
+ * src\Corporation\Division.ts
+ *
+ * Return a factor based on demand and competition that affects sales
+ *
+ * @param demand
+ * @param competition
+ */
 export function getMarketFactor(demand: number, competition: number): number {
     return Math.max(0.1, (demand * (100 - competition)) / 100);
 }

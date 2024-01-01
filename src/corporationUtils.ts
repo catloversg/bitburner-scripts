@@ -84,13 +84,15 @@ export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
 export const researchPrioritiesForProductDivision: ResearchPriority[] = [
     ...researchPrioritiesForSupportDivision,
     {research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch},
-    {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: 10},
+    // {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: 10},
     // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: 10},
 ];
 
 export const exportString = "(IPROD+IINV/10)*(-1)";
 
 export const dummyDivisionNamePrefix = "z-";
+
+export const sampleProductName = "Sample product";
 
 // Key: divisionName|city
 const smartSupplyData: Map<string, number> = new Map<string, number>();
