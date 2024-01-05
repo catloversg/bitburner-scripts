@@ -167,7 +167,7 @@ function createTestingTool() {
                         const objectStore = db.transaction(["savestring"], "readwrite").objectStore("savestring");
                         const request = objectStore.put(result, "save");
                         request.onsuccess = () => {
-                            globalThis.location?.reload();
+                            globalThis.setTimeout(() => globalThis.location.reload(), 1000);
                         };
                     };
                 };

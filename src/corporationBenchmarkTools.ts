@@ -2,7 +2,9 @@ import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
 import {
+    BalancingModifierForProfitProgress,
     BenchmarkType,
+    ComparatorCustomData,
     CorporationBenchmark,
     defaultPerformanceModifierForOfficeBenchmark,
     EmployeeJobRequirement,
@@ -134,6 +136,7 @@ export async function optimizeOffice(
     item: Material | Product,
     useCurrentItemData: boolean,
     sortType: OfficeBenchmarkSortType,
+    balancingModifierForProfitProgress: BalancingModifierForProfitProgress,
     maxRerun = 1,
     performanceModifier = defaultPerformanceModifierForOfficeBenchmark,
     enableLogging = false,
@@ -246,6 +249,10 @@ export async function optimizeOffice(
         useCurrentItemData,
         customData
     );
+    const comparatorCustomData: ComparatorCustomData = {
+        referenceData: referenceData,
+        balancingModifierForProfitProgress: balancingModifierForProfitProgress
+    };
 
     // nonRnDEmployeesWithRequirement is only used for calculating min/max
     let nonRnDEmployeesWithRequirement = nonRnDEmployees;
@@ -294,7 +301,7 @@ export async function optimizeOffice(
             useCurrentItemData,
             customData,
             sortType,
-            referenceData,
+            comparatorCustomData,
             enableLogging,
             employeeJobsRequirement
         ).then(result => {
@@ -345,7 +352,7 @@ export async function optimizeOffice(
     if (error) {
         throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
     }
-    data.sort(getComparator(BenchmarkType.OFFICE, sortType, referenceData));
+    data.sort(getComparator(BenchmarkType.OFFICE, sortType, comparatorCustomData));
 
     let count = 0;
     while (true) {
@@ -389,7 +396,7 @@ export async function optimizeOffice(
         if (error) {
             throw new Error(`Error occurred in worker: ${JSON.stringify(error)}`);
         }
-        data.sort(getComparator(BenchmarkType.OFFICE, sortType, referenceData));
+        data.sort(getComparator(BenchmarkType.OFFICE, sortType, comparatorCustomData));
         ++count;
     }
 

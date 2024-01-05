@@ -47,6 +47,12 @@ interface NewProductEvent extends CorporationEvent {
     investment: number;
 }
 
+interface SkipDevelopingNewProductEvent extends CorporationEvent {
+    cycle: number;
+    revenue: number;
+    expenses: number;
+}
+
 interface OfferAcceptanceEvent extends CorporationEvent {
     cycle: number;
     round: number;
@@ -164,6 +170,16 @@ class CorporationEventLogger {
         this.limitNumberOfEvents();
     }
 
+    public generateSkipDevelopingNewProductEvent(ns: NS): void {
+        const skipDevelopingNewProductEvent: SkipDevelopingNewProductEvent = {
+            cycle: this.cycle,
+            revenue: ns.corporation.getCorporation().revenue,
+            expenses: ns.corporation.getCorporation().expenses
+        };
+        this.#events.push(skipDevelopingNewProductEvent);
+        this.limitNumberOfEvents();
+    }
+
     public generateOfferAcceptanceEvent(ns: NS): void {
         const offerAcceptanceEvent: OfferAcceptanceEvent = {
             cycle: this.cycle,
@@ -198,9 +214,12 @@ const profitMilestones = [
     1e11,
     1e12,
     1e13,
+    1e14,
     1e15,
     1e16,
     1e17,
+    1e18,
+    1e19,
     1e20,
     1e21,
     1e22,
@@ -238,6 +257,10 @@ function isNewProductEvent(event: CorporationEvent): event is NewProductEvent {
     return "productName" in event;
 }
 
+function isSkipDevelopingNewProductEvent(event: CorporationEvent): event is SkipDevelopingNewProductEvent {
+    return ("revenue" in event) && !("funds" in event);
+}
+
 function isOfferAcceptanceEvent(event: CorporationEvent): event is OfferAcceptanceEvent {
     return "round" in event;
 }
@@ -248,6 +271,10 @@ export function analyseEventData(eventData: string): void {
     for (const event of events) {
         if (isNewProductEvent(event)) {
             console.log(`${event.cycle}: productName: ${event.productName}`);
+            continue;
+        }
+        if (isSkipDevelopingNewProductEvent(event)) {
+            console.log(`${event.cycle}: skip developing new product, profit: ${formatNumber(event.revenue - event.expenses)}`);
             continue;
         }
         if (isOfferAcceptanceEvent(event)) {

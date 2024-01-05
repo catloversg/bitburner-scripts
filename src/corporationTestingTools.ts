@@ -141,11 +141,17 @@ export function isTestingToolsAvailable(): boolean {
 }
 
 export function setUnlimitedBonusTime(): void {
-    globalThis.Player.corporation.storedCycles = 1e9;
+    if (!isTestingToolsAvailable()) {
+        return;
+    }
+    Player.corporation.storedCycles = 1e9;
 }
 
 export function removeBonusTime(): void {
-    globalThis.Player.corporation.storedCycles = 0;
+    if (!isTestingToolsAvailable()) {
+        return;
+    }
+    Player.corporation.storedCycles = 0;
 }
 
 export function setFunds(funds: number): void {

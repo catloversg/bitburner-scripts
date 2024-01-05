@@ -55,6 +55,7 @@ import {
 } from "/corporationUtils";
 import {optimizeOffice} from "/corporationBenchmarkTools";
 import {
+    BalancingModifierForProfitProgress,
     CorporationBenchmark,
     defaultPerformanceModifierForOfficeBenchmark,
     OfficeBenchmarkSortType
@@ -555,10 +556,118 @@ async function improveAllDivisions(): Promise<void> {
             if (maxWilsonLevel > currentWilsonLevel) {
                 buyUpgrade(ns, UpgradeName.WILSON_ANALYTICS, maxWilsonLevel);
             }
+
+            if (profit >= 1e20) {
+                const currentAdvertLevel = ns.corporation.getHireAdVertCount(DivisionName.TOBACCO);
+                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.5);
+                if (maxAdvertLevel > currentAdvertLevel) {
+                    buyAdvert(ns, DivisionName.TOBACCO, maxAdvertLevel);
+                }
+            }
         }
 
         const totalFunds = ns.corporation.getCorporation().funds;
         let availableFunds = totalFunds;
+
+        // In round 3 and 4, we only develop up to maxNumberOfProducts
+        let maxNumberOfProducts = maxNumberOfProductsInRound3;
+        if (currentRound === 4) {
+            maxNumberOfProducts = maxNumberOfProductsInRound4;
+        }
+        if (currentRound === 3 || currentRound === 4) {
+            const productIdArray = getProductIdArray(ns, DivisionName.TOBACCO);
+            let numberOfDevelopedProducts = 0;
+            if (productIdArray.length > 0) {
+                numberOfDevelopedProducts = Math.max(...productIdArray) + 1;
+            }
+            if (numberOfDevelopedProducts >= maxNumberOfProducts) {
+                // If all products are finished, we wait for 15 cycles, then accept investment offer.
+                // We take a "snapshot" of product list here. When we use the standard setup, we use only 1 or 2 slots of
+                // products while waiting for offer. In that case, we can develop the next product while waiting, this
+                // "snapshot" ensures that the product list that we use to calculate the "profit" setup does not include
+                // the developing product.
+                const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
+                let allProductsAreFinished = true;
+                for (const productName of products) {
+                    const product = ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, productName);
+                    if (product.developmentProgress < 100) {
+                        allProductsAreFinished = false;
+                        break;
+                    }
+                }
+                const getNewestProduct = () => {
+                    return ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, products[products.length - 1]);
+                };
+                let newestProduct = getNewestProduct();
+                if (!preparingToAcceptOffer
+                    && newestProduct.developmentProgress > 98
+                    && newestProduct.developmentProgress < 100) {
+                    preparingToAcceptOffer = true;
+                }
+                if (allProductsAreFinished) {
+                    const newProductName = developNewProduct(
+                        ns,
+                        DivisionName.TOBACCO,
+                        mainProductDevelopmentCity,
+                        totalFunds * 0.01
+                    );
+                    if (newProductName) {
+                        corporationEventLogger.generateNewProductEvent(newProductName, availableFunds * 0.01);
+                    }
+
+                    // Wait until newest product's effectiveRating is not 0
+                    while (getNewestProduct().effectiveRating === 0) {
+                        await waitForNumberOfCycles(ns, 1);
+                        ++cycleCount;
+                    }
+
+                    // It may take some cycles to stabilize the product's effectiveRating. Waiting for only 1 cycle may
+                    // be okay, but we should wait for 2 cycles to ensure that product's effectiveRating has been stabilized.
+                    await waitForNumberOfCycles(ns, 2);
+                    cycleCount += 2;
+
+                    // Switch all offices to "profit" setup to maximize the offer
+                    await switchAllOfficesToProfitSetup(
+                        tobaccoIndustryData,
+                        // We must use the latest data of product
+                        getNewestProduct()
+                    );
+
+                    await waitForNumberOfCycles(ns, 15);
+                    cycleCount += 15;
+                    console.log(
+                        `Cycle: ${cycleCount}. `
+                        + `Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`
+                    );
+                    corporationEventLogger.generateOfferAcceptanceEvent(ns);
+                    ns.corporation.acceptInvestmentOffer();
+                    preparingToAcceptOffer = false;
+                    continue;
+                }
+            }
+        }
+
+        // Skip developing new product if we are in exponential phase
+        if (profit <= 1e35 || availableFunds >= 1e75) {
+            let productDevelopmentBudget = totalFunds * 0.01;
+            // Make sure that we use at least 1e75 for productDevelopmentBudget after exponential phase
+            if (availableFunds >= 1e75) {
+                productDevelopmentBudget = Math.max(productDevelopmentBudget, 1e75);
+            }
+            const newProductName = developNewProduct(
+                ns,
+                DivisionName.TOBACCO,
+                mainProductDevelopmentCity,
+                productDevelopmentBudget
+            );
+            if (newProductName) {
+                console.log(`develop ${newProductName}`);
+                corporationEventLogger.generateNewProductEvent(newProductName, productDevelopmentBudget);
+                availableFunds -= productDevelopmentBudget;
+            }
+        } else {
+            corporationEventLogger.generateSkipDevelopingNewProductEvent(ns);
+        }
 
         const tobaccoHasRevenue = ns.corporation.getDivision(DivisionName.TOBACCO).lastCycleRevenue > 0;
         const forceToUpgradeTobacco = (currentRound >= 4) &&
@@ -618,96 +727,6 @@ async function improveAllDivisions(): Promise<void> {
                     pendingImprovingProductDivisions2.delete(DivisionName.TOBACCO);
                 });
             }
-        }
-
-        // In round 3 and 4, we only develop up to maxNumberOfProducts
-        let maxNumberOfProducts = maxNumberOfProductsInRound3;
-        if (currentRound === 4) {
-            maxNumberOfProducts = maxNumberOfProductsInRound4;
-        }
-        if (currentRound === 3 || currentRound === 4) {
-            const productIdArray = getProductIdArray(ns, DivisionName.TOBACCO);
-            let numberOfDevelopedProducts = 0;
-            if (productIdArray.length > 0) {
-                numberOfDevelopedProducts = Math.max(...productIdArray) + 1;
-            }
-            if (numberOfDevelopedProducts >= maxNumberOfProducts) {
-                // If all products are finished, we wait for 15 cycles, then accept investment offer.
-                // We take a "snapshot" of product list here. When we use the standard setup, we use only 1 or 2 slots of
-                // products while waiting for offer. In that case, we can develop the next product while waiting, this
-                // "snapshot" ensures that the product list that we use to calculate the "profit" setup does not include
-                // the developing product.
-                const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
-                let allProductsAreFinished = true;
-                for (const productName of products) {
-                    const product = ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, productName);
-                    if (product.developmentProgress < 100) {
-                        allProductsAreFinished = false;
-                        break;
-                    }
-                }
-                const getNewestProduct = () => {
-                    return ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, products[products.length - 1]);
-                };
-                let newestProduct = getNewestProduct();
-                if (!preparingToAcceptOffer
-                    && newestProduct.developmentProgress > 98
-                    && newestProduct.developmentProgress < 100) {
-                    preparingToAcceptOffer = true;
-                }
-                if (allProductsAreFinished) {
-                    const newProductName = developNewProduct(
-                        ns,
-                        DivisionName.TOBACCO,
-                        mainProductDevelopmentCity,
-                        totalFunds * 0.01
-                    );
-                    if (newProductName) {
-                        corporationEventLogger.generateNewProductEvent(newProductName, totalFunds * 0.01);
-                    }
-
-                    // Wait until newest product's effectiveRating is not 0
-                    while (getNewestProduct().effectiveRating === 0) {
-                        await waitForNumberOfCycles(ns, 1);
-                        ++cycleCount;
-                    }
-
-                    // It may take some cycles to stabilize the product's effectiveRating. Waiting for only 1 cycle may
-                    // be okay, but we should wait for 2 cycles to ensure that product's effectiveRating has been stabilized.
-                    await waitForNumberOfCycles(ns, 2);
-                    cycleCount += 2;
-
-                    // Switch all offices to "profit" setup to maximize the offer
-                    await switchAllOfficesToProfitSetup(
-                        tobaccoIndustryData,
-                        // We must use the latest data of product
-                        getNewestProduct()
-                    );
-
-                    await waitForNumberOfCycles(ns, 15);
-                    cycleCount += 15;
-                    console.log(
-                        `Cycle: ${cycleCount}. `
-                        + `Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`
-                    );
-                    corporationEventLogger.generateOfferAcceptanceEvent(ns);
-                    ns.corporation.acceptInvestmentOffer();
-                    preparingToAcceptOffer = false;
-                    continue;
-                }
-            }
-        }
-
-        const productDevelopmentBudget = totalFunds * 0.01;
-        const newProductName = developNewProduct(
-            ns,
-            DivisionName.TOBACCO,
-            mainProductDevelopmentCity,
-            productDevelopmentBudget
-        );
-        if (newProductName) {
-            corporationEventLogger.generateNewProductEvent(newProductName, productDevelopmentBudget);
-            availableFunds -= productDevelopmentBudget;
         }
 
         const forceToUpgradeAgriculture = (currentRound >= 4) &&
@@ -796,7 +815,20 @@ async function improveAllDivisions(): Promise<void> {
     }
 }
 
-async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, newestProduct: Product) {
+function getBalancingModifierForProfitProgress(): BalancingModifierForProfitProgress {
+    if (ns.corporation.getCorporation().revenue - ns.corporation.getCorporation().expenses >= 1e70) {
+        return {
+            profit: 1,
+            progress: 20
+        };
+    }
+    return {
+        profit: 1,
+        progress: 40
+    };
+}
+
+async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, newestProduct: Product): Promise<void> {
     const mainOffice = ns.corporation.getOffice(DivisionName.TOBACCO, mainProductDevelopmentCity);
     const dataArray = await optimizeOffice(
         ns,
@@ -808,6 +840,7 @@ async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, new
         newestProduct,
         true,
         "profit",
+        getBalancingModifierForProfitProgress(),
         0, // Do not rerun
         20, // Half of defaultPerformanceModifierForOfficeBenchmark
         false
@@ -987,6 +1020,7 @@ async function improveSupportDivision(
         item,
         true,
         "rawProduction",
+        getBalancingModifierForProfitProgress(),
         0, // Do not rerun
         20, // Half of defaultPerformanceModifierForOfficeBenchmark
         enableLogging,
@@ -1120,14 +1154,13 @@ async function improveProductDivisionMainOffice(
     const products = division.products;
     let item: Product;
     let sortType: OfficeBenchmarkSortType;
+    let useCurrentItemData = true;
     if (ns.corporation.getInvestmentOffer().round === 3
-        || ns.corporation.getInvestmentOffer().round === 4
-        || (ns.corporation.getCorporation().revenue - ns.corporation.getCorporation().expenses) >= 1e34) {
+        || ns.corporation.getInvestmentOffer().round === 4) {
         sortType = "progress";
     } else {
         sortType = "profit_progress";
     }
-    let useCurrentItemData = true;
     let bestProduct = null;
     let highestEffectiveRating = Number.MIN_VALUE;
     for (const productName of products) {
@@ -1182,6 +1215,7 @@ async function improveProductDivisionMainOffice(
         item,
         useCurrentItemData,
         sortType,
+        getBalancingModifierForProfitProgress(),
         maxRerunWhenOptimizingOfficeForProductDivision,
         defaultPerformanceModifierForOfficeBenchmark,
         enableLogging

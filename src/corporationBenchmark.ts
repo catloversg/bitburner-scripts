@@ -99,13 +99,19 @@ export interface EmployeeJobRequirement {
     business: number;
 }
 
+export interface ComparatorCustomData {
+    referenceData: OfficeBenchmarkData;
+    balancingModifierForProfitProgress: {
+        profit: number;
+        progress: number;
+    };
+}
+
+export type BalancingModifierForProfitProgress = ComparatorCustomData["balancingModifierForProfitProgress"];
+
 const defaultMinForNormalization = 0;
 const defaultMaxForNormalization = 20;
 const referenceValueModifier = 10;
-const balancingModifierForProfitProgress = {
-    profit: 1,
-    progress: 35
-};
 
 export async function getReferenceData(
     division: Division,
@@ -154,7 +160,7 @@ export function normalizeProgress(progress: number): number {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getComparator(benchmarkType: BenchmarkType, sortType?: string, referenceData?: OfficeBenchmarkData): (a: any, b: any) => number {
+export function getComparator(benchmarkType: BenchmarkType, sortType?: string, customData?: ComparatorCustomData): (a: any, b: any) => number {
     switch (benchmarkType) {
         case BenchmarkType.STORAGE_FACTORY:
             return (a: StorageFactoryBenchmarkData, b: StorageFactoryBenchmarkData) => {
@@ -196,24 +202,24 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string, r
                 if (sortType === "profit") {
                     return a.profit - b.profit;
                 }
-                if (!referenceData) {
-                    throw new Error(`Invalid reference data`);
+                if (!customData) {
+                    throw new Error(`Invalid custom data`);
                 }
-                const normalizedProfitOfA = normalizeProfit(a.profit, referenceData.profit);
+                const normalizedProfitOfA = normalizeProfit(a.profit, customData.referenceData.profit);
                 const normalizedProgressOfA = normalizeProgress(a.productDevelopmentProgress);
-                const normalizedProfitOfB = normalizeProfit(b.profit, referenceData.profit);
+                const normalizedProfitOfB = normalizeProfit(b.profit, customData.referenceData.profit);
                 const normalizedProgressOfB = normalizeProgress(b.productDevelopmentProgress);
                 if (!Number.isFinite(normalizedProfitOfA) || !Number.isFinite(normalizedProfitOfB)) {
                     throw new Error(
                         `Invalid profit: a.profit: ${a.profit.toExponential()}, b.profit: ${b.profit.toExponential()}`
-                        + `, referenceData.profit: ${referenceData.profit.toExponential()}`
+                        + `, referenceData.profit: ${customData.referenceData.profit.toExponential()}`
                     );
                 }
                 if (sortType === "profit_progress") {
-                    return (balancingModifierForProfitProgress.profit * normalizedProfitOfA
-                            + balancingModifierForProfitProgress.progress * normalizedProgressOfA)
-                        - (balancingModifierForProfitProgress.profit * normalizedProfitOfB
-                            + balancingModifierForProfitProgress.progress * normalizedProgressOfB);
+                    return (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfA
+                            + customData.balancingModifierForProfitProgress.progress * normalizedProgressOfA)
+                        - (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfB
+                            + customData.balancingModifierForProfitProgress.progress * normalizedProgressOfB);
                 }
                 throw new Error(`Invalid sort type: ${sortType}`);
             };
@@ -737,7 +743,7 @@ export class CorporationBenchmark {
         useCurrentItemData: boolean,
         customData: OfficeBenchmarkCustomData,
         sortType: OfficeBenchmarkSortType,
-        referenceData: OfficeBenchmarkData,
+        comparatorCustomData: ComparatorCustomData,
         enableLogging = false,
         employeeJobsRequirement?: EmployeeJobRequirement
     ): Promise<{ step: number; data: OfficeBenchmarkData[]; }> {
@@ -769,7 +775,7 @@ export class CorporationBenchmark {
             managementStep,
         );
 
-        const comparator = getComparator(BenchmarkType.OFFICE, sortType, referenceData);
+        const comparator = getComparator(BenchmarkType.OFFICE, sortType, comparatorCustomData);
         const priorityQueue = new PriorityQueue(comparator);
         // We use maxStep for all loops instead of specific step for each loop to maximize performance. The result is
         // still good enough.
