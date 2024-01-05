@@ -2,6 +2,7 @@ import {NS} from "@ns";
 import {CityName, CorporationUpgradeLevels, DivisionResearches, formatNumber, OfficeSetup} from "/corporationFormulas";
 import {cities, dummyDivisionNamePrefix, getCorporationUpgradeLevels, getDivisionResearches} from "/corporationUtils";
 import {isTestingToolsAvailable} from "/corporationTestingTools";
+import {mean} from "/libs/utils";
 
 declare global {
     // eslint-disable-next-line no-var
@@ -57,6 +58,20 @@ interface OfferAcceptanceEvent extends CorporationEvent {
     cycle: number;
     round: number;
     offer: number;
+}
+
+interface EmployeeRatioData {
+    cycle: number;
+    fundingRound: number;
+    nonRnDEmployees: number;
+    operations: number;
+    engineer: number;
+    business: number;
+    management: number;
+    operationsRatio: number;
+    engineerRatio: number;
+    businessRatio: number;
+    managementRatio: number;
 }
 
 class CorporationEventLogger {
@@ -290,5 +305,79 @@ export function analyseEventData(eventData: string): void {
             console.log(`${event.cycle}: profit: ${formatNumber(profit)}`);
             ++currentMilestonesIndex;
         }
+    }
+}
+
+export function analyseEmployeeRatio(eventData: string): void {
+    const events: CorporationEvent[] = JSON.parse(eventData);
+    const data = new Map<number, EmployeeRatioData>();
+    // 0: Agriculture
+    // 1: Chemical
+    // 2: Tobacco
+    /* eslint-disable-next-line prefer-const -- Use let instead of const to avoid linting error when divisionIndex's type
+    is narrowed down */
+    let divisionIndex = 0;
+    const isSupportDivision = divisionIndex === 0 || divisionIndex === 1;
+    const isProductDivision = !isSupportDivision;
+    for (const event of events) {
+        if (isNewProductEvent(event) || isSkipDevelopingNewProductEvent((event)) || isOfferAcceptanceEvent(event)) {
+            continue;
+        }
+        if (!isDefaultCorporationEvent(event)) {
+            console.error("Invalid event:", event);
+            continue;
+        }
+        const office = event.divisions[divisionIndex].offices[0];
+        if (data.has(office.size)) {
+            continue;
+        }
+        const jobs = office.jobs;
+        const nonRnDEmployees = jobs.Operations + jobs.Engineer + jobs.Business + jobs.Management;
+        const operationsRatio = jobs.Operations / nonRnDEmployees;
+        const engineerRatio = jobs.Engineer / nonRnDEmployees;
+        const businessRatio = jobs.Business / nonRnDEmployees;
+        const managementRatio = jobs.Management / nonRnDEmployees;
+        const dataItem: EmployeeRatioData = {
+            cycle: event.cycle,
+            fundingRound: event.fundingRound,
+            nonRnDEmployees: nonRnDEmployees,
+            operations: jobs.Operations,
+            engineer: jobs.Engineer,
+            business: jobs.Business,
+            management: jobs.Management,
+            operationsRatio: operationsRatio,
+            engineerRatio: engineerRatio,
+            businessRatio: businessRatio,
+            managementRatio: managementRatio,
+        };
+        data.set(office.size, dataItem);
+        console.log(
+            event.cycle,
+            event.fundingRound,
+            office.size,
+            nonRnDEmployees,
+            jobs.Operations,
+            jobs.Engineer,
+            jobs.Business,
+            jobs.Management,
+            operationsRatio.toFixed(3),
+            engineerRatio.toFixed(3),
+            businessRatio.toFixed(3),
+            managementRatio.toFixed(3)
+        );
+    }
+    const filteredData = [...data.values()].filter(value => {
+        if (isSupportDivision) {
+            return value.fundingRound >= 4;
+        }
+        return value.operations > 0;
+    });
+    if (isSupportDivision) {
+        console.log(
+            mean(filteredData.map(value => value.operationsRatio)).toFixed(3),
+            mean(filteredData.map(value => value.engineerRatio)).toFixed(3),
+            mean(filteredData.map(value => value.businessRatio)).toFixed(3),
+            mean(filteredData.map(value => value.managementRatio)).toFixed(3),
+        );
     }
 }

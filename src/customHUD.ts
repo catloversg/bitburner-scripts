@@ -431,7 +431,7 @@ export async function main(nsContext: NS): Promise<void> {
                     runCorpRound = false;
                 }
                 if (runCorpTest) {
-                    if (ns.exec("corporation.js", "home", 1, "--test") === 0) {
+                    if (ns.exec("corporation.js", "home", 1, "--test", "--benchmark") === 0) {
                         ns.toast("Failed to run corporation.js --test --benchmark");
                     }
                     runCorpTest = false;

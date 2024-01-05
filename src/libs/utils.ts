@@ -55,6 +55,23 @@ export function scaleValueToRange(value: number, currentMin: number, currentMax:
     return ((value - currentMin) * (newMax - newMin) / (currentMax - currentMin)) + newMin;
 }
 
+export function sum(numbers: number[]): number {
+    return numbers.reduce((sum, value) => sum + value, 0);
+}
+
+export function mean(numbers: number[]) {
+    return sum(numbers) / numbers.length;
+}
+
+export function median(numbers: number[]) {
+    const sorted = numbers.toSorted();
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    return sorted[middle];
+}
+
 //-------------------------------------------------- Random functions --------------------------------------------------
 // Ref 1: https://dimitri.xyz/random-ints-from-random-bits/
 // Ref 2: https://github.com/nodejs/node/blob/main/lib/internal/crypto/random.js

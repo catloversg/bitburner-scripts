@@ -116,15 +116,15 @@ const referenceValueModifier = 10;
 export async function getReferenceData(
     division: Division,
     industryData: CorpIndustryData,
-    maxNonRnDEmployees: number,
+    nonRnDEmployees: number,
     item: Material | Product,
     useCurrentItemData: boolean,
     customData: OfficeBenchmarkCustomData
 ): Promise<OfficeBenchmarkData> {
-    const operations = Math.floor(maxNonRnDEmployees * 0.06);
-    const engineer = Math.floor(maxNonRnDEmployees * 0.3);
-    const business = Math.floor(maxNonRnDEmployees * 0.08);
-    const management = maxNonRnDEmployees - (operations + engineer + business);
+    const operations = Math.floor(nonRnDEmployees * 0.06);
+    const engineer = Math.floor(nonRnDEmployees * 0.3);
+    const business = Math.floor(nonRnDEmployees * 0.08);
+    const management = nonRnDEmployees - (operations + engineer + business);
     return await calculateOfficeBenchmarkData(
         division,
         industryData,
@@ -769,7 +769,7 @@ export class CorporationBenchmark {
             Math.floor((managementJob.max - managementJob.min) / performanceModifier),
             minStepForOfficeBenchmark
         );
-        let maxStep = Math.max(
+        const maxStep = Math.max(
             operationsStep,
             engineerStep,
             managementStep,

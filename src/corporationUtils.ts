@@ -269,7 +269,7 @@ export function upgradeWarehouse(ns: NS, divisionName: string, city: CityName, t
  * @param divisionName
  */
 export async function buyTeaAndThrowParty(ns: NS, divisionName: string): Promise<void> {
-    let epsilon = 0.5;
+    const epsilon = 0.5;
     let minAcceptableEnergy = 99;
     let minAcceptableMorale = 99;
     if (ns.corporation.hasResearched(divisionName, ResearchName.GO_JUICE)) {
@@ -310,7 +310,7 @@ export function buyTeaAndThrowPartyForAllDivisions(ns: NS): void {
         });
         return;
     }
-    let epsilon = 0.5;
+    const epsilon = 0.5;
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
         let minAcceptableEnergy = 99;
         let minAcceptableMorale = 99;
@@ -1058,7 +1058,6 @@ export function developNewProduct(
         if (productDevelopmentBudget < bestProductBudget * 0.5 && products.length >= 3) {
             const warningMessage = `Budget for new product is too low: ${ns.formatNumber(productDevelopmentBudget)}. `
                 + `Current best product's budget: ${ns.formatNumber(bestProductBudget)}`;
-            console.warn(warningMessage);
             showWarning(
                 ns,
                 warningMessage
