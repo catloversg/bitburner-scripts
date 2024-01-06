@@ -63,6 +63,7 @@ interface OfferAcceptanceEvent extends CorporationEvent {
 interface EmployeeRatioData {
     cycle: number;
     fundingRound: number;
+    profit: number;
     nonRnDEmployees: number;
     operations: number;
     engineer: number;
@@ -316,7 +317,7 @@ export function analyseEmployeeRatio(eventData: string): void {
     // 2: Tobacco
     /* eslint-disable-next-line prefer-const -- Use let instead of const to avoid linting error when divisionIndex's type
     is narrowed down */
-    let divisionIndex = 0;
+    let divisionIndex = 2;
     const isSupportDivision = divisionIndex === 0 || divisionIndex === 1;
     const isProductDivision = !isSupportDivision;
     for (const event of events) {
@@ -340,6 +341,7 @@ export function analyseEmployeeRatio(eventData: string): void {
         const dataItem: EmployeeRatioData = {
             cycle: event.cycle,
             fundingRound: event.fundingRound,
+            profit: event.revenue - event.expenses,
             nonRnDEmployees: nonRnDEmployees,
             operations: jobs.Operations,
             engineer: jobs.Engineer,
@@ -354,6 +356,7 @@ export function analyseEmployeeRatio(eventData: string): void {
         console.log(
             event.cycle,
             event.fundingRound,
+            event.revenue.toExponential(),
             office.size,
             nonRnDEmployees,
             jobs.Operations,
@@ -378,6 +381,44 @@ export function analyseEmployeeRatio(eventData: string): void {
             mean(filteredData.map(value => value.engineerRatio)).toFixed(3),
             mean(filteredData.map(value => value.businessRatio)).toFixed(3),
             mean(filteredData.map(value => value.managementRatio)).toFixed(3),
+        );
+    }
+    if (isProductDivision) {
+        const round3Data = filteredData.filter(value => value.fundingRound === 3);
+        console.log(
+            "round 3",
+            mean(round3Data.map(value => value.operationsRatio)).toFixed(3),
+            mean(round3Data.map(value => value.engineerRatio)).toFixed(3),
+            mean(round3Data.map(value => value.businessRatio)).toFixed(3),
+            mean(round3Data.map(value => value.managementRatio)).toFixed(3),
+        );
+        const round4Data = filteredData.filter(value => value.fundingRound === 4);
+        console.log(
+            "round 4",
+            mean(round4Data.map(value => value.operationsRatio)).toFixed(3),
+            mean(round4Data.map(value => value.engineerRatio)).toFixed(3),
+            mean(round4Data.map(value => value.businessRatio)).toFixed(3),
+            mean(round4Data.map(value => value.managementRatio)).toFixed(3),
+        );
+        const round5Data1 = filteredData.filter(value => {
+            return value.fundingRound === 5 && value.profit < 1e35;
+        });
+        console.log(
+            "round 5-1",
+            mean(round5Data1.map(value => value.operationsRatio)).toFixed(3),
+            mean(round5Data1.map(value => value.engineerRatio)).toFixed(3),
+            mean(round5Data1.map(value => value.businessRatio)).toFixed(3),
+            mean(round5Data1.map(value => value.managementRatio)).toFixed(3),
+        );
+        const round5Data2 = filteredData.filter(value => {
+            return value.fundingRound === 5 && value.profit >= 1e35;
+        });
+        console.log(
+            "round 5-2",
+            mean(round5Data2.map(value => value.operationsRatio)).toFixed(3),
+            mean(round5Data2.map(value => value.engineerRatio)).toFixed(3),
+            mean(round5Data2.map(value => value.businessRatio)).toFixed(3),
+            mean(round5Data2.map(value => value.managementRatio)).toFixed(3),
         );
     }
 }

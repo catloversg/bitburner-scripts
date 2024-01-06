@@ -113,6 +113,54 @@ const defaultMinForNormalization = 0;
 const defaultMaxForNormalization = 20;
 const referenceValueModifier = 10;
 
+export const precalculatedEmployeeRatioForSupportDivisions = {
+    operations: 0.22,
+    engineer: 0.632,
+    business: 0,
+    management: 0.148
+};
+
+export const precalculatedEmployeeRatioForProfitSetupOfRound3 = {
+    operations: 34 / 141,
+    engineer: 5 / 141,
+    business: 77 / 141,
+    management: 25 / 141
+};
+export const precalculatedEmployeeRatioForProfitSetupOfRound4 = {
+    operations: 82 / 444,
+    engineer: 14 / 444,
+    business: 295 / 444,
+    management: 53 / 444
+};
+
+export const precalculatedEmployeeRatioForProductDivisionRound3 = {
+    operations: 0.035,
+    engineer: 0.504,
+    business: 0.014,
+    management: 0.447
+};
+
+export const precalculatedEmployeeRatioForProductDivisionRound4 = {
+    operations: 0.03,
+    engineer: 0.526,
+    business: 0.008,
+    management: 0.436
+};
+
+export const precalculatedEmployeeRatioForProductDivisionRound5_1 = {
+    operations: 0.031,
+    engineer: 0.489,
+    business: 0.067,
+    management: 0.413
+};
+
+export const precalculatedEmployeeRatioForProductDivisionRound5_2 = {
+    operations: 0.015,
+    engineer: 0.526,
+    business: 0.033,
+    management: 0.426
+};
+
 export async function getReferenceData(
     division: Division,
     industryData: CorpIndustryData,
@@ -121,9 +169,9 @@ export async function getReferenceData(
     useCurrentItemData: boolean,
     customData: OfficeBenchmarkCustomData
 ): Promise<OfficeBenchmarkData> {
-    const operations = Math.floor(nonRnDEmployees * 0.06);
-    const engineer = Math.floor(nonRnDEmployees * 0.3);
-    const business = Math.floor(nonRnDEmployees * 0.08);
+    const operations = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.operations);
+    const engineer = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.engineer);
+    const business = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.business);
     const management = nonRnDEmployees - (operations + engineer + business);
     return await calculateOfficeBenchmarkData(
         division,
