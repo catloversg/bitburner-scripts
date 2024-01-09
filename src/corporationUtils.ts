@@ -84,8 +84,9 @@ export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
 export const researchPrioritiesForProductDivision: ResearchPriority[] = [
     ...researchPrioritiesForSupportDivision,
     {research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch},
-    // {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: 10},
-    // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: 10},
+    // Do not buy these researches
+    // {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: costMultiplierForProductionResearch},
+    // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: costMultiplierForProductionResearch},
 ];
 
 export const exportString = "(IPROD+IINV/10)*(-1)";
@@ -216,9 +217,13 @@ export async function waitForNumberOfCycles(ns: NS, numberOfCycles: number): Pro
     }
 }
 
+export function getProfit(ns: NS) {
+    const corporation = ns.corporation.getCorporation();
+    return corporation.revenue - corporation.expenses;
+}
+
 export function hasDivision(ns: NS, divisionName: string): boolean {
     return ns.corporation.getCorporation().divisions.includes(divisionName);
-
 }
 
 export function buyUpgrade(ns: NS, upgrade: UpgradeName, targetLevel: number): void {
@@ -458,7 +463,7 @@ export async function stockMaterials(
     });
     let count = 0;
     while (!nsExited) {
-        if (count === 3) {
+        if (count === 5) {
             const warningMessage = `It takes too many cycles to stock up on materials. Division: ${divisionName}, `
                 + `orders: ${JSON.stringify(orders)}`;
             showWarning(ns, warningMessage);
@@ -1363,17 +1368,17 @@ export function getResearchPointGainRate(ns: NS, divisionName: string): number {
     return totalGainRate;
 }
 
-export async function buyBoostMaterials(ns: NS, division: Division, ratio: number = 0.1): Promise<void> {
+export async function buyBoostMaterials(ns: NS, division: Division): Promise<void> {
     const industryData = ns.corporation.getIndustryData(division.type);
-    let reservedSpaceRatio = 0.15;
+    let reservedSpaceRatio = 0.2;
+    const ratio = 0.1;
     if (industryData.makesProducts) {
         reservedSpaceRatio = 0.1;
-        ratio = 0.1;
     }
     let count = 0;
     while (true) {
         await waitUntilAfterStateHappens(ns, CorpState.EXPORT);
-        if (count === 15) {
+        if (count === 20) {
             const warningMessage = `It takes too many cycles to buy boost materials. Division: ${division.name}.`;
             showWarning(ns, warningMessage);
             break;
@@ -1386,7 +1391,13 @@ export async function buyBoostMaterials(ns: NS, division: Division, ratio: numbe
             if (availableSpace < warehouse.size * reservedSpaceRatio) {
                 continue;
             }
-            const boostMaterialQuantities = getOptimalBoostMaterialQuantities(industryData, availableSpace * ratio);
+            let effectiveRatio = ratio;
+            if ((availableSpace / warehouse.size < 0.5 && division.type === IndustryType.AGRICULTURE)
+                || (availableSpace / warehouse.size < 0.75
+                    && (division.type === IndustryType.CHEMICAL || division.type === IndustryType.TOBACCO))) {
+                effectiveRatio = 0.2;
+            }
+            const boostMaterialQuantities = getOptimalBoostMaterialQuantities(industryData, availableSpace * effectiveRatio);
             orders.push({
                 city: city,
                 materials: [

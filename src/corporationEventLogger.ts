@@ -401,7 +401,7 @@ export function analyseEmployeeRatio(eventData: string): void {
             mean(round4Data.map(value => value.managementRatio)).toFixed(3),
         );
         const round5Data1 = filteredData.filter(value => {
-            return value.fundingRound === 5 && value.profit < 1e35;
+            return value.fundingRound === 5 && value.profit < 1e30;
         });
         console.log(
             "round 5-1",
@@ -411,7 +411,7 @@ export function analyseEmployeeRatio(eventData: string): void {
             mean(round5Data1.map(value => value.managementRatio)).toFixed(3),
         );
         const round5Data2 = filteredData.filter(value => {
-            return value.fundingRound === 5 && value.profit >= 1e35;
+            return value.fundingRound === 5 && value.profit >= 1e30;
         });
         console.log(
             "round 5-2",

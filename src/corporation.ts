@@ -42,6 +42,7 @@ import {
     getDivisionResearches,
     getProductIdArray,
     getProductMarketPrice,
+    getProfit,
     hasDivision,
     Logger,
     researchPrioritiesForProductDivision,
@@ -118,21 +119,21 @@ const defaultBudgetRatioForSupportDivision = {
 };
 
 const defaultBudgetRatioForProductDivision = {
-    rawProduction: 0.17,
-    wilsonAdvert: 0.32,
-    office: 0.14,
-    employeeStatUpgrades: 0.14,
-    salesBot: 0.03,
-    projectInsight: 0.17,
+    rawProduction: 1 / 23,
+    wilsonAdvert: 4 / 23,
+    office: 8 / 23,
+    employeeStatUpgrades: 8 / 23,
+    salesBot: 1 / 23,
+    projectInsight: 1 / 23,
 };
 
-const budgetRatioForProductDivisionAfterMaxAdvertBenefits = {
-    rawProduction: 0.332,
+const budgetRatioForProductDivisionWithoutAdvert = {
+    rawProduction: 1 / 19,
     wilsonAdvert: 0,
-    office: 0.267,
-    employeeStatUpgrades: 0.267,
-    salesBot: 0.067,
-    projectInsight: 0.067,
+    office: 8 / 19,
+    employeeStatUpgrades: 8 / 19,
+    salesBot: 1 / 19,
+    projectInsight: 1 / 19,
 };
 
 const maxRerunWhenOptimizingOfficeForProductDivision = 0;
@@ -142,6 +143,12 @@ const usePrecalculatedEmployeeRatioForSupportDivisions = true;
 const usePrecalculatedEmployeeRatioForProfitSetup = true;
 
 const usePrecalculatedEmployeeRatioForProductDivision = false;
+
+const maxNumberOfProductsInRound3 = 1;
+
+const maxNumberOfProductsInRound4 = 2;
+
+const thresholdOfFocusingOnAdvert = 1e20;
 
 let ns: NS;
 let nsx: NetscriptExtension;
@@ -517,8 +524,6 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
 }
 
 async function improveAllDivisions(): Promise<void> {
-    const maxNumberOfProductsInRound3 = 1;
-    const maxNumberOfProductsInRound4 = 3;
     let cycleCount = corporationEventLogger.cycle;
     // This is used for calling improveProductDivision with skipUpgradingOffice = true
     const pendingImprovingProductDivisions1 = new Set<string>();
@@ -553,7 +558,7 @@ async function improveAllDivisions(): Promise<void> {
     while (true) {
         ++cycleCount;
         const currentRound = ns.corporation.getInvestmentOffer().round;
-        const profit = ns.corporation.getCorporation().revenue - ns.corporation.getCorporation().expenses;
+        const profit = getProfit(ns);
         console.log(
             `cycleCount: ${cycleCount}. Funds: ${ns.formatNumber(ns.corporation.getCorporation().funds)}. Profit: ${ns.formatNumber(profit)}`
             + ((currentRound <= 4) ? `. Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}` : "")
@@ -561,19 +566,20 @@ async function improveAllDivisions(): Promise<void> {
 
         await buyResearch();
 
-        // Buy Wilson ASAP if we can afford it with the last cycle's profit. Budget for Wilson and Advert is just part of
-        // current funds, it's usually too low for our benchmark to calculate the optimal combination. The benchmark is
-        // most suitable for big-budget situation, like after accepting investment offer.
         if (ns.corporation.getDivision(DivisionName.TOBACCO).awareness !== Number.MAX_VALUE) {
+            // Buy Wilson ASAP if we can afford it with the last cycle's profit. Budget for Wilson and Advert is just part of
+            // current funds, it's usually too low for our benchmark to calculate the optimal combination. The benchmark is
+            // most suitable for big-budget situation, like after accepting investment offer.
             const currentWilsonLevel = ns.corporation.getUpgradeLevel(UpgradeName.WILSON_ANALYTICS);
             const maxWilsonLevel = getMaxAffordableUpgradeLevel(UpgradeName.WILSON_ANALYTICS, currentWilsonLevel, profit);
             if (maxWilsonLevel > currentWilsonLevel) {
                 buyUpgrade(ns, UpgradeName.WILSON_ANALYTICS, maxWilsonLevel);
             }
 
-            if (profit >= 1e20) {
+            // Prioritize Advert
+            if (profit >= thresholdOfFocusingOnAdvert) {
                 const currentAdvertLevel = ns.corporation.getHireAdVertCount(DivisionName.TOBACCO);
-                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.5);
+                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.3);
                 if (maxAdvertLevel > currentAdvertLevel) {
                     buyAdvert(ns, DivisionName.TOBACCO, maxAdvertLevel);
                 }
@@ -601,14 +607,10 @@ async function improveAllDivisions(): Promise<void> {
                 // "snapshot" ensures that the product list that we use to calculate the "profit" setup does not include
                 // the developing product.
                 const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
-                let allProductsAreFinished = true;
-                for (const productName of products) {
+                const allProductsAreFinished = products.every(productName => {
                     const product = ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, productName);
-                    if (product.developmentProgress < 100) {
-                        allProductsAreFinished = false;
-                        break;
-                    }
-                }
+                    return product.developmentProgress === 100;
+                });
                 const getNewestProduct = () => {
                     return ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, products[products.length - 1]);
                 };
@@ -635,11 +637,6 @@ async function improveAllDivisions(): Promise<void> {
                         ++cycleCount;
                     }
 
-                    // It may take some cycles to stabilize the product's effectiveRating. Waiting for only 1 cycle may
-                    // be okay, but we should wait for 2 cycles to ensure that product's effectiveRating has been stabilized.
-                    await waitForNumberOfCycles(ns, 2);
-                    cycleCount += 2;
-
                     // Switch all offices to "profit" setup to maximize the offer
                     await switchAllOfficesToProfitSetup(
                         tobaccoIndustryData,
@@ -661,12 +658,12 @@ async function improveAllDivisions(): Promise<void> {
             }
         }
 
-        // Skip developing new product if we are in exponential phase
-        if (profit <= 1e35 || availableFunds >= 2e75) {
+        // Skip developing new product if we are at the near end of exponential phase
+        if (profit <= 1e40 || availableFunds >= 1e72) {
             let productDevelopmentBudget = totalFunds * 0.01;
-            // Make sure that we use at least 2e75 for productDevelopmentBudget after exponential phase
-            if (availableFunds >= 2e75) {
-                productDevelopmentBudget = Math.max(productDevelopmentBudget, 2e75);
+            // Make sure that we use at least 1e72 for productDevelopmentBudget after exponential phase
+            if (availableFunds >= 1e72) {
+                productDevelopmentBudget = Math.max(productDevelopmentBudget, 1e72);
             }
             const newProductName = developNewProduct(
                 ns,
@@ -680,7 +677,14 @@ async function improveAllDivisions(): Promise<void> {
                 availableFunds -= productDevelopmentBudget;
             }
         } else {
-            corporationEventLogger.generateSkipDevelopingNewProductEvent(ns);
+            const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
+            const allProductsAreFinished = products.every(productName => {
+                const product = ns.corporation.getProduct(DivisionName.TOBACCO, mainProductDevelopmentCity, productName);
+                return product.developmentProgress === 100;
+            });
+            if (allProductsAreFinished) {
+                corporationEventLogger.generateSkipDevelopingNewProductEvent(ns);
+            }
         }
 
         const tobaccoHasRevenue = ns.corporation.getDivision(DivisionName.TOBACCO).lastCycleRevenue > 0;
@@ -696,7 +700,7 @@ async function improveAllDivisions(): Promise<void> {
             );
         }
         if (tobaccoHasRevenue
-            && (cycleCount % 10 === 0 || forceToUpgradeTobacco)) {
+            && (cycleCount % 5 === 0 || forceToUpgradeTobacco)) {
             const budgetForTobaccoDivision = totalFunds * 0.9;
             availableFunds -= budgetForTobaccoDivision;
 
@@ -750,7 +754,7 @@ async function improveAllDivisions(): Promise<void> {
             console.debug("forceToUpgradeAgriculture");
         }
         if (tobaccoHasRevenue
-            && (cycleCount % 15 === 0 || forceToUpgradeAgriculture)
+            && (cycleCount % 10 === 0 || forceToUpgradeAgriculture)
             && !pendingImprovingSupportDivisions.has(DivisionName.AGRICULTURE)) {
             const budgetForAgricultureDivision = Math.max(
                 Math.min(profit * 0.99, totalFunds * 0.09, availableFunds),
@@ -781,7 +785,7 @@ async function improveAllDivisions(): Promise<void> {
             console.debug("forceToUpgradeChemical");
         }
         if (tobaccoHasRevenue
-            && (cycleCount % 20 === 0 || forceToUpgradeChemical)
+            && (cycleCount % 15 === 0 || forceToUpgradeChemical)
             && !pendingImprovingSupportDivisions.has(DivisionName.CHEMICAL)) {
             const budgetForChemicalDivision = Math.max(
                 Math.min(profit * 0.01, totalFunds * 0.01, availableFunds),
@@ -814,31 +818,20 @@ async function improveAllDivisions(): Promise<void> {
             console.debug(`plants ratio: ${producedPlants / consumedPlants}`);
         }
 
-        const mainOffice = ns.corporation.getOffice(DivisionName.TOBACCO, mainProductDevelopmentCity);
-        if (mainOffice.employeeJobs.Operations >= mainOffice.numEmployees * 0.14
-            || mainOffice.employeeJobs.Engineer >= mainOffice.numEmployees * 0.59
-            || mainOffice.employeeJobs.Management <= mainOffice.numEmployees * 0.26
-            || mainOffice.employeeJobs.Management >= mainOffice.numEmployees * 0.69) {
-            console.error(
-                `cycle count: ${cycleCount}, numEmployees: ${mainOffice.numEmployees}, ` +
-                `employeeJobs: ${JSON.stringify(mainOffice.employeeJobs)}`
-            );
-        }
-
         await waitUntilAfterStateHappens(ns, CorpState.START);
     }
 }
 
 function getBalancingModifierForProfitProgress(): BalancingModifierForProfitProgress {
-    if (ns.corporation.getCorporation().revenue - ns.corporation.getCorporation().expenses >= 1e70) {
+    if (getProfit(ns) >= 1e35) {
         return {
             profit: 1,
-            progress: 20
+            progress: 2.5
         };
     }
     return {
         profit: 1,
-        progress: 40
+        progress: 5
     };
 }
 
@@ -1178,7 +1171,7 @@ async function improveProductDivisionMainOffice(
     enableLogging: boolean
 ): Promise<void> {
     const logger = new Logger(enableLogging);
-    const profit = ns.corporation.getCorporation().revenue - ns.corporation.getCorporation().expenses;
+    const profit = getProfit(ns);
     const division = ns.corporation.getDivision(divisionName);
     const office = ns.corporation.getOffice(divisionName, mainProductDevelopmentCity);
     const maxOfficeSize = getMaxAffordableOfficeSize(office.size, budget);
@@ -1206,9 +1199,9 @@ async function improveProductDivisionMainOffice(
             precalculatedEmployeeRatioForProductDivision = precalculatedEmployeeRatioForProductDivisionRound3;
         } else if (ns.corporation.getInvestmentOffer().round === 4) {
             precalculatedEmployeeRatioForProductDivision = precalculatedEmployeeRatioForProductDivisionRound4;
-        } else if (ns.corporation.getInvestmentOffer().round === 5 && profit < 1e35) {
+        } else if (ns.corporation.getInvestmentOffer().round === 5 && profit < 1e30) {
             precalculatedEmployeeRatioForProductDivision = precalculatedEmployeeRatioForProductDivisionRound5_1;
-        } else if (ns.corporation.getInvestmentOffer().round === 5 && profit >= 1e35) {
+        } else if (ns.corporation.getInvestmentOffer().round === 5 && profit >= 1e30) {
             precalculatedEmployeeRatioForProductDivision = precalculatedEmployeeRatioForProductDivisionRound5_2;
         } else {
             throw new Error("Invalid precalculated employee ratio");
@@ -1328,17 +1321,43 @@ async function improveProductDivisionSupportOffices(
         if (maxOfficeSize < office.size) {
             continue;
         }
-        officeSetups.push(({
+        const officeSetup: OfficeSetup = {
             city: city,
             size: maxOfficeSize,
             jobs: {
-                Operations: 1,
-                Engineer: 1,
-                Business: 1,
-                Management: 1,
-                "Research & Development": maxOfficeSize - 4,
+                Operations: 0,
+                Engineer: 0,
+                Business: 0,
+                Management: 0,
+                "Research & Development": 0,
             }
-        }));
+        };
+        if (ns.corporation.getInvestmentOffer().round === 3 && maxNumberOfProductsInRound3 === 1) {
+            officeSetup.jobs.Operations = 0;
+            officeSetup.jobs.Engineer = 0;
+            officeSetup.jobs.Business = 0;
+            officeSetup.jobs.Management = 0;
+            officeSetup.jobs["Research & Development"] = maxOfficeSize;
+        } else if (ns.corporation.getInvestmentOffer().round === 3 || ns.corporation.getInvestmentOffer().round === 4) {
+            officeSetup.jobs.Operations = 1;
+            officeSetup.jobs.Engineer = 1;
+            officeSetup.jobs.Business = 1;
+            officeSetup.jobs.Management = 1;
+            officeSetup.jobs["Research & Development"] = maxOfficeSize - 4;
+        } else {
+            const rndEmployee = Math.min(
+                Math.floor(maxOfficeSize * 0.5),
+                maxOfficeSize - 4
+            );
+            const nonRnDEmployees = maxOfficeSize - rndEmployee;
+            // Reuse the ratio of "profit" setup in round 4. It's good enough.
+            officeSetup.jobs.Operations = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProfitSetupOfRound4.operations);
+            officeSetup.jobs.Engineer = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProfitSetupOfRound4.engineer);
+            officeSetup.jobs.Business = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProfitSetupOfRound4.business);
+            officeSetup.jobs.Management = nonRnDEmployees - (officeSetup.jobs.Operations + officeSetup.jobs.Engineer + officeSetup.jobs.Business);
+            officeSetup.jobs["Research & Development"] = rndEmployee;
+        }
+        officeSetups.push(officeSetup);
     }
     logger.log(`supportOffices: ${JSON.stringify(officeSetups)}`);
     if (!dryRun) {
@@ -1395,8 +1414,8 @@ async function improveProductDivision(
     const benchmark = new CorporationBenchmark();
     const currentFunds = ns.corporation.getCorporation().funds;
 
-    if (division.awareness === Number.MAX_VALUE) {
-        budgetRatioForProductDivision = budgetRatioForProductDivisionAfterMaxAdvertBenefits;
+    if (getProfit(ns) >= thresholdOfFocusingOnAdvert) {
+        budgetRatioForProductDivision = budgetRatioForProductDivisionWithoutAdvert;
     }
 
     // employeeStatUpgrades

@@ -109,8 +109,8 @@ export interface ComparatorCustomData {
 
 export type BalancingModifierForProfitProgress = ComparatorCustomData["balancingModifierForProfitProgress"];
 
-const defaultMinForNormalization = 0;
-const defaultMaxForNormalization = 20;
+const defaultMinForNormalization = 5;
+const defaultMaxForNormalization = 200;
 const referenceValueModifier = 10;
 
 export const precalculatedEmployeeRatioForSupportDivisions = {
@@ -121,44 +121,45 @@ export const precalculatedEmployeeRatioForSupportDivisions = {
 };
 
 export const precalculatedEmployeeRatioForProfitSetupOfRound3 = {
-    operations: 34 / 141,
-    engineer: 5 / 141,
-    business: 77 / 141,
-    management: 25 / 141
+    operations: 50 / 174, // 0.28735632183908045977011494252874
+    engineer: 6 / 174, // 0.03448275862068965517241379310345
+    business: 82 / 174, // 0.47126436781609195402298850574713
+    management: 36 / 174 // 0.20689655172413793103448275862069
 };
+
 export const precalculatedEmployeeRatioForProfitSetupOfRound4 = {
-    operations: 82 / 444,
-    engineer: 14 / 444,
-    business: 295 / 444,
-    management: 53 / 444
+    operations: 80 / 441, // 0.18140589569160997732426303854875
+    engineer: 14 / 441, // 0.03174603174603174603174603174603
+    business: 294 / 441, // 0.66666666666666666666666666666667
+    management: 53 / 441 // 0.12018140589569160997732426303855
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound3 = {
-    operations: 0.035,
-    engineer: 0.504,
-    business: 0.014,
-    management: 0.447
+    operations: 0.029,
+    engineer: 0.523,
+    business: 0.006,
+    management: 0.443
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound4 = {
-    operations: 0.03,
-    engineer: 0.526,
-    business: 0.008,
+    operations: 0.029,
+    engineer: 0.524,
+    business: 0.01,
     management: 0.436
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound5_1 = {
-    operations: 0.031,
-    engineer: 0.489,
+    operations: 0.032,
+    engineer: 0.464,
     business: 0.067,
-    management: 0.413
+    management: 0.437
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound5_2 = {
-    operations: 0.015,
-    engineer: 0.526,
-    business: 0.033,
-    management: 0.426
+    operations: 0.084,
+    engineer: 0.260,
+    business: 0.379,
+    management: 0.277
 };
 
 export async function getReferenceData(
@@ -169,9 +170,9 @@ export async function getReferenceData(
     useCurrentItemData: boolean,
     customData: OfficeBenchmarkCustomData
 ): Promise<OfficeBenchmarkData> {
-    const operations = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.operations);
-    const engineer = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.engineer);
-    const business = Math.floor(nonRnDEmployees * precalculatedEmployeeRatioForProductDivisionRound5_1.business);
+    const operations = Math.floor(nonRnDEmployees * 0.031);
+    const engineer = Math.floor(nonRnDEmployees * 0.489);
+    const business = Math.floor(nonRnDEmployees * 0.067);
     const management = nonRnDEmployees - (operations + engineer + business);
     return await calculateOfficeBenchmarkData(
         division,
@@ -254,9 +255,9 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string, c
                     throw new Error(`Invalid custom data`);
                 }
                 const normalizedProfitOfA = normalizeProfit(a.profit, customData.referenceData.profit);
-                const normalizedProgressOfA = normalizeProgress(a.productDevelopmentProgress);
+                const normalizedProgressOfA = normalizeProgress(Math.ceil(100 / a.productDevelopmentProgress));
                 const normalizedProfitOfB = normalizeProfit(b.profit, customData.referenceData.profit);
-                const normalizedProgressOfB = normalizeProgress(b.productDevelopmentProgress);
+                const normalizedProgressOfB = normalizeProgress(Math.ceil(100 / b.productDevelopmentProgress));
                 if (!Number.isFinite(normalizedProfitOfA) || !Number.isFinite(normalizedProfitOfB)) {
                     throw new Error(
                         `Invalid profit: a.profit: ${a.profit.toExponential()}, b.profit: ${b.profit.toExponential()}`
@@ -265,9 +266,9 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string, c
                 }
                 if (sortType === "profit_progress") {
                     return (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfA
-                            + customData.balancingModifierForProfitProgress.progress * normalizedProgressOfA)
+                            - customData.balancingModifierForProfitProgress.progress * normalizedProgressOfA)
                         - (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfB
-                            + customData.balancingModifierForProfitProgress.progress * normalizedProgressOfB);
+                            - customData.balancingModifierForProfitProgress.progress * normalizedProgressOfB);
                 }
                 throw new Error(`Invalid sort type: ${sortType}`);
             };

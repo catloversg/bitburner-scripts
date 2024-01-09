@@ -231,6 +231,7 @@ export async function optimizeOffice(
             `salesEfficiency: ${Math.min(dataEntry.maxSalesVolume / dataEntry.rawProduction, 1).toFixed(3)}`;
         if (isProduct(item)) {
             message += `, progress: ${dataEntry.productDevelopmentProgress.toFixed(5)}`;
+            message += `, progressCycle: ${Math.ceil(100 / dataEntry.productDevelopmentProgress)}`;
             message += `, estimatedRP: ${formatNumber(dataEntry.estimatedRP)}`;
             message += `, rating: ${formatNumber(dataEntry.productRating)}`;
             message += `, markup: ${formatNumber(dataEntry.productMarkup)}`;
@@ -314,18 +315,12 @@ export async function optimizeOffice(
             error = reason;
         });
     };
-    let operationsMin = min;
-    let operationsMax = max;
+    const operationsMin = min;
+    const operationsMax = max;
     let engineerMin = min;
     let engineerMax = max;
-    let managementMin = min;
-    let managementMax = max;
-    // if (sortType === "progress" || sortType === "profit_progress") {
-    //     operationsMax = Math.floor(nonRnDEmployeesWithRequirement * 0.15);
-    //     engineerMin = Math.floor(nonRnDEmployeesWithRequirement * 0.1);
-    //     managementMin = Math.floor(nonRnDEmployeesWithRequirement * 0.25);
-    //     managementMax = Math.floor(nonRnDEmployeesWithRequirement * 0.7);
-    // }
+    const managementMin = min;
+    const managementMax = max;
     if (employeeJobsRequirement) {
         engineerMin = employeeJobsRequirement.engineer;
         engineerMax = employeeJobsRequirement.engineer;
