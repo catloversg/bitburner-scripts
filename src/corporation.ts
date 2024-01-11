@@ -688,20 +688,9 @@ async function improveAllDivisions(): Promise<void> {
         }
 
         const tobaccoHasRevenue = ns.corporation.getDivision(DivisionName.TOBACCO).lastCycleRevenue > 0;
-        const forceToUpgradeTobacco = (currentRound >= 4) &&
-            (6 * ns.corporation.getOfficeSizeUpgradeCost(DivisionName.TOBACCO, CityName.Sector12, 1)
-                < availableFunds * 0.001);
-        if (forceToUpgradeTobacco) {
-            console.debug(
-                "forceToUpgradeTobacco",
-                `office cost: ${ns.formatNumber(
-                    ns.corporation.getOfficeSizeUpgradeCost(DivisionName.TOBACCO, CityName.Sector12, 1)
-                )}`
-            );
-        }
+        const budgetForTobaccoDivision = totalFunds * 0.9;
         if (tobaccoHasRevenue
-            && (cycleCount % 5 === 0 || forceToUpgradeTobacco)) {
-            const budgetForTobaccoDivision = totalFunds * 0.9;
+            && (cycleCount % 5 === 0 || needToUpgradeDivision(DivisionName.TOBACCO, budgetForTobaccoDivision))) {
             availableFunds -= budgetForTobaccoDivision;
 
             // Skip upgrading office in the following function call. We need to buy corporation's upgrades ASAP, so we
@@ -747,19 +736,13 @@ async function improveAllDivisions(): Promise<void> {
             }
         }
 
-        const forceToUpgradeAgriculture = (currentRound >= 4) &&
-            (6 * ns.corporation.getOfficeSizeUpgradeCost(DivisionName.AGRICULTURE, CityName.Sector12, 1)
-                < availableFunds * 1e-4);
-        if (forceToUpgradeAgriculture) {
-            console.debug("forceToUpgradeAgriculture");
-        }
+        const budgetForAgricultureDivision = Math.max(
+            Math.min(profit * (currentRound <= 4 ? 0.9 : 0.99), totalFunds * 0.09, availableFunds),
+            0
+        );
         if (tobaccoHasRevenue
-            && (cycleCount % 10 === 0 || forceToUpgradeAgriculture)
+            && (cycleCount % 10 === 0 || needToUpgradeDivision(DivisionName.AGRICULTURE, budgetForAgricultureDivision))
             && !pendingImprovingSupportDivisions.has(DivisionName.AGRICULTURE)) {
-            const budgetForAgricultureDivision = Math.max(
-                Math.min(profit * 0.99, totalFunds * 0.09, availableFunds),
-                0
-            );
             availableFunds -= budgetForAgricultureDivision;
             pendingImprovingSupportDivisions.add(DivisionName.AGRICULTURE);
             console.log(`Upgrade ${DivisionName.AGRICULTURE}, budget: ${ns.formatNumber(budgetForAgricultureDivision)}`);
@@ -778,19 +761,13 @@ async function improveAllDivisions(): Promise<void> {
                 buyBoostMaterialsIfNeeded(DivisionName.AGRICULTURE);
             });
         }
-        const forceToUpgradeChemical = (currentRound >= 4) &&
-            (6 * ns.corporation.getOfficeSizeUpgradeCost(DivisionName.CHEMICAL, CityName.Sector12, 1)
-                < availableFunds * 1e-5);
-        if (forceToUpgradeChemical) {
-            console.debug("forceToUpgradeChemical");
-        }
+        const budgetForChemicalDivision = Math.max(
+            Math.min(profit * (currentRound <= 4 ? 0.1 : 0.01), totalFunds * 0.01, availableFunds),
+            0
+        );
         if (tobaccoHasRevenue
-            && (cycleCount % 15 === 0 || forceToUpgradeChemical)
+            && (cycleCount % 15 === 0 || needToUpgradeDivision(DivisionName.CHEMICAL, budgetForChemicalDivision))
             && !pendingImprovingSupportDivisions.has(DivisionName.CHEMICAL)) {
-            const budgetForChemicalDivision = Math.max(
-                Math.min(profit * 0.01, totalFunds * 0.01, availableFunds),
-                0
-            );
             availableFunds -= budgetForChemicalDivision;
             pendingImprovingSupportDivisions.add(DivisionName.CHEMICAL);
             console.log(`Upgrade ${DivisionName.CHEMICAL}, budget: ${ns.formatNumber(budgetForChemicalDivision)}`);
@@ -820,6 +797,24 @@ async function improveAllDivisions(): Promise<void> {
 
         await waitUntilAfterStateHappens(ns, CorpState.START);
     }
+}
+
+function needToUpgradeDivision(divisionName: string, budget: number) {
+    const office = ns.corporation.getOffice(divisionName, CityName.Sector12);
+    let expectedUpgradeSize = 30;
+    if (ns.corporation.getInvestmentOffer().round <= 4) {
+        expectedUpgradeSize = Math.min(office.size / 2, 30);
+    }
+    // Assume that we use entire budget to upgrade offices. This is not correct, but it simplifies the calculation.
+    const maxOfficeSize = getMaxAffordableOfficeSize(office.size, budget / 6);
+    const needToUpgrade = maxOfficeSize >= office.size + expectedUpgradeSize;
+    if (needToUpgrade) {
+        console.debug(
+            `needToUpgrade ${divisionName}, budget: ${ns.formatNumber(budget)}, office.size: ${office.size}, `
+            + `maxOfficeSize: ${maxOfficeSize}}`
+        );
+    }
+    return needToUpgrade;
 }
 
 function getBalancingModifierForProfitProgress(): BalancingModifierForProfitProgress {

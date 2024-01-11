@@ -263,6 +263,16 @@ const profitMilestones = [
     1e88,
     1e89,
     1e90,
+    1e91,
+    1e92,
+    1e93,
+    1e94,
+    1e95,
+    1e96,
+    1e97,
+    1e98,
+    1e99,
+    1e100,
 ];
 
 function isDefaultCorporationEvent(event: CorporationEvent): event is DefaultCorporationEvent {
