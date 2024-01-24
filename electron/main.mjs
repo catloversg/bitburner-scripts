@@ -11,6 +11,9 @@ const createWindow = () => {
     mainWindow.once("ready-to-show", () => {
         mainWindow.maximize();
     });
+    mainWindow.webContents.on("will-prevent-unload", (event) => {
+        event.preventDefault();
+    });
 };
 app.whenReady().then(() => {
     createWindow();
