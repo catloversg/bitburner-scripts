@@ -1,4 +1,4 @@
-import {NS} from "@ns";
+import {NS, Product} from "@ns";
 import {CityName, CorporationUpgradeLevels, DivisionResearches, formatNumber, OfficeSetup} from "/corporationFormulas";
 import {cities, dummyDivisionNamePrefix, getCorporationUpgradeLevels, getDivisionResearches} from "/corporationUtils";
 import {isTestingToolsAvailable} from "/corporationTestingTools";
@@ -44,8 +44,8 @@ interface DefaultCorporationEvent extends CorporationEvent {
 
 interface NewProductEvent extends CorporationEvent {
     cycle: number;
-    productName: string;
-    investment: number;
+    newestProduct: Product;
+    lastProduct?: Product;
 }
 
 interface SkipDevelopingNewProductEvent extends CorporationEvent {
@@ -78,7 +78,7 @@ interface EmployeeRatioData {
 class CorporationEventLogger {
     constructor() {
         if (!globalThis.corporationEventCycle) {
-            if (isTestingToolsAvailable()) {
+            if (isTestingToolsAvailable() && globalThis.Player.corporation) {
                 globalThis.corporationEventCycle = globalThis.Player.corporation.cycleCount;
             } else {
                 globalThis.corporationEventCycle = 0;
@@ -176,11 +176,19 @@ class CorporationEventLogger {
         this.limitNumberOfEvents();
     }
 
-    public generateNewProductEvent(productName: string, investment: number): void {
+    public generateNewProductEvent(ns: NS, divisionName: string): void {
+        const products = ns.corporation.getDivision(divisionName).products;
+        if (products.length === 0) {
+            throw new Error(`Division ${divisionName} does not have any product`);
+        }
+        let lastProduct;
+        if (products.length > 1) {
+            lastProduct = ns.corporation.getProduct(divisionName, CityName.Sector12, products[products.length - 2]);
+        }
         const newProductEvent: NewProductEvent = {
             cycle: this.cycle,
-            productName: productName,
-            investment: investment
+            newestProduct: ns.corporation.getProduct(divisionName, CityName.Sector12, products[products.length - 1]),
+            lastProduct: lastProduct
         };
         this.#events.push(newProductEvent);
         this.limitNumberOfEvents();
@@ -280,7 +288,7 @@ function isDefaultCorporationEvent(event: CorporationEvent): event is DefaultCor
 }
 
 function isNewProductEvent(event: CorporationEvent): event is NewProductEvent {
-    return "productName" in event;
+    return "newestProduct" in event;
 }
 
 function isSkipDevelopingNewProductEvent(event: CorporationEvent): event is SkipDevelopingNewProductEvent {
@@ -296,7 +304,7 @@ export function analyseEventData(eventData: string): void {
     let currentMilestonesIndex = 0;
     for (const event of events) {
         if (isNewProductEvent(event)) {
-            console.log(`${event.cycle}: productName: ${event.productName}`);
+            console.log(`${event.cycle}: newest product: ${event.newestProduct.name}`);
             continue;
         }
         if (isSkipDevelopingNewProductEvent(event)) {

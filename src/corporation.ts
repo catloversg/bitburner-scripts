@@ -71,6 +71,7 @@ import {
 } from "/corporationBenchmark";
 import * as testingTools from "/corporationTestingTools";
 import {corporationEventLogger} from "/corporationEventLogger";
+import {exposePlayerObject} from "/exploits";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -88,7 +89,6 @@ const PrecalculatedRound1Option = {
 } as const;
 
 interface Round2Option {
-    numberOfDummyDivisions: number;
     waitForAgricultureRP: number;
     waitForChemicalRP: number;
 }
@@ -96,13 +96,8 @@ interface Round2Option {
 const PrecalculatedRound2Option = {
     // Minimum funds at start: 431b
     OPTION1: <Round2Option>{
-        numberOfDummyDivisions: 17,
-        // 175-100
-        // 245-150
-        // 315-200
-        // 390-250
-        waitForAgricultureRP: 245,
-        waitForChemicalRP: 150,
+        waitForAgricultureRP: 460,
+        waitForChemicalRP: 300,
     }
 } as const;
 
@@ -142,13 +137,13 @@ const usePrecalculatedEmployeeRatioForSupportDivisions = true;
 
 const usePrecalculatedEmployeeRatioForProfitSetup = true;
 
-const usePrecalculatedEmployeeRatioForProductDivision = false;
+const usePrecalculatedEmployeeRatioForProductDivision = true;
 
 const maxNumberOfProductsInRound3 = 1;
 
 const maxNumberOfProductsInRound4 = 2;
 
-const thresholdOfFocusingOnAdvert = 1e20;
+const thresholdOfFocusingOnAdvert = 1e18;
 
 let ns: NS;
 let nsx: NetscriptExtension;
@@ -282,7 +277,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
     );
 
     // Create Chemical division
-    await createDivision(ns, DivisionName.CHEMICAL, 3, 1);
+    await createDivision(ns, DivisionName.CHEMICAL, 3, 2);
     // Import materials, sell/export produced materials
     for (const city of cities) {
         // Export Plants from Agriculture to Chemical
@@ -296,8 +291,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         ns.corporation.sellMaterial(DivisionName.CHEMICAL, city, MaterialName.CHEMICALS, "MAX", "MP");
     }
 
-    // Create dummy divisions
-    createDummyDivisions(ns, option.numberOfDummyDivisions);
+    buyAdvert(ns, DivisionName.AGRICULTURE, 8);
 
     const dataArray = new CorporationBenchmark().optimizeStorageAndFactory(
         agricultureIndustryData,
@@ -319,14 +313,6 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
     for (const city of cities) {
         upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
     }
-    buyAdvert(
-        ns,
-        DivisionName.AGRICULTURE,
-        getMaxAffordableAdVertLevel(
-            ns.corporation.getHireAdVertCount(DivisionName.AGRICULTURE),
-            ns.corporation.getCorporation().funds
-        )
-    );
 
     if (enableTestingTools) {
         testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
@@ -437,10 +423,10 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
 
     if (enableTestingTools) {
         resetStatistics();
-        testingTools.setFunds(27e12);
+        testingTools.setFunds(11e12);
     }
     const startingBudget = ns.corporation.getCorporation().funds;
-    if (startingBudget < 27e12) {
+    if (startingBudget < 10e12) {
         throw new Error("Your budget is too low");
     }
 
@@ -475,7 +461,6 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
 
     const agricultureDivisionBudget = 500e9;
     const chemicalDivisionBudget = 110e9;
-    const boostMaterialsBudget = 900e9;
 
     // division.productionMult is 0 when division is created. It will be updated in next state.
     while (ns.corporation.getDivision(DivisionName.TOBACCO).productionMult === 0) {
@@ -485,7 +470,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     await improveProductDivision(
         DivisionName.TOBACCO,
         ns.corporation.getCorporation().funds * 0.99
-        - agricultureDivisionBudget - chemicalDivisionBudget - boostMaterialsBudget - 1e9,
+        - agricultureDivisionBudget - chemicalDivisionBudget - 1e9,
         false,
         false,
         false
@@ -497,6 +482,7 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
         mainProductDevelopmentCity,
         1e9
     );
+    corporationEventLogger.generateNewProductEvent(ns, DivisionName.TOBACCO);
 
     await improveSupportDivision(
         DivisionName.AGRICULTURE,
@@ -602,9 +588,9 @@ async function improveAllDivisions(): Promise<void> {
             }
             if (numberOfDevelopedProducts >= maxNumberOfProducts) {
                 // If all products are finished, we wait for 15 cycles, then accept investment offer.
-                // We take a "snapshot" of product list here. When we use the standard setup, we use only 1 or 2 slots of
-                // products while waiting for offer. In that case, we can develop the next product while waiting, this
-                // "snapshot" ensures that the product list that we use to calculate the "profit" setup does not include
+                // We take a "snapshot" of product list here. When we use the standard setup, we use only 1 slot of
+                // product slots while waiting for offer. In that case, we can develop the next product while waiting.
+                // This "snapshot" ensures the product list that we use to calculate the "profit" setup does not include
                 // the developing product.
                 const products = ns.corporation.getDivision(DivisionName.TOBACCO).products;
                 const allProductsAreFinished = products.every(productName => {
@@ -628,7 +614,7 @@ async function improveAllDivisions(): Promise<void> {
                         totalFunds * 0.01
                     );
                     if (newProductName) {
-                        corporationEventLogger.generateNewProductEvent(newProductName, availableFunds * 0.01);
+                        corporationEventLogger.generateNewProductEvent(ns, DivisionName.TOBACCO);
                     }
 
                     // Wait until newest product's effectiveRating is not 0
@@ -673,7 +659,7 @@ async function improveAllDivisions(): Promise<void> {
             );
             if (newProductName) {
                 console.log(`Develop ${newProductName}`);
-                corporationEventLogger.generateNewProductEvent(newProductName, productDevelopmentBudget);
+                corporationEventLogger.generateNewProductEvent(ns, DivisionName.TOBACCO);
                 availableFunds -= productDevelopmentBudget;
             }
         } else {
@@ -1139,10 +1125,13 @@ function improveProductDivisionWilsonAdvert(
     enableLogging: boolean
 ): void {
     const logger = new Logger(enableLogging);
+    const division = ns.corporation.getDivision(divisionName);
     const dataArray = benchmark.optimizeWilsonAndAdvert(
         industryData,
         ns.corporation.getUpgradeLevel(UpgradeName.WILSON_ANALYTICS),
         ns.corporation.getHireAdVertCount(divisionName),
+        division.awareness,
+        division.popularity,
         divisionResearches,
         budget,
         enableLogging
@@ -1204,6 +1193,9 @@ async function improveProductDivisionMainOffice(
         officeSetup.jobs.Operations = Math.floor(officeSetup.size * precalculatedEmployeeRatioForProductDivision.operations);
         officeSetup.jobs.Engineer = Math.floor(officeSetup.size * precalculatedEmployeeRatioForProductDivision.engineer);
         officeSetup.jobs.Business = Math.floor(officeSetup.size * precalculatedEmployeeRatioForProductDivision.business);
+        if (officeSetup.jobs.Business === 0) {
+            officeSetup.jobs.Business = 1;
+        }
         officeSetup.jobs.Management = officeSetup.size - (officeSetup.jobs.Operations + officeSetup.jobs.Engineer + officeSetup.jobs.Business);
     } else {
         if (ns.corporation.getInvestmentOffer().round === 3
@@ -1547,7 +1539,8 @@ export async function main(nsContext: NS): Promise<void> {
     chemicalIndustryData = ns.corporation.getIndustryData(IndustryType.CHEMICAL);
     tobaccoIndustryData = ns.corporation.getIndustryData(IndustryType.TOBACCO);
 
-    if (config.benchmark === true && testingTools.isTestingToolsAvailable()) {
+    if (config.benchmark === true) {
+        exposePlayerObject();
         enableTestingTools = true;
     }
 

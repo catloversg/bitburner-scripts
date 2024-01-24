@@ -453,6 +453,7 @@ export async function stockMaterials(
     ns: NS,
     divisionName: string,
     orders: MaterialOrder[],
+    bulkPurchase = false,
     discardExceeded = false
 ): Promise<void> {
     let nsExited = false;
@@ -480,8 +481,12 @@ export async function stockMaterials(
                 }
                 // Buy
                 if (storedAmount < material.count) {
-                    ns.corporation.buyMaterial(divisionName, order.city, material.name, (material.count - storedAmount) / 10);
-                    ns.corporation.sellMaterial(divisionName, order.city, material.name, "0", "MP");
+                    if (bulkPurchase) {
+                        ns.corporation.bulkPurchase(divisionName, order.city, material.name, material.count - storedAmount);
+                    } else {
+                        ns.corporation.buyMaterial(divisionName, order.city, material.name, (material.count - storedAmount) / 10);
+                        ns.corporation.sellMaterial(divisionName, order.city, material.name, "0", "MP");
+                    }
                     finish = false;
                 }
                 // Discard
@@ -1369,6 +1374,12 @@ export function getResearchPointGainRate(ns: NS, divisionName: string): number {
 }
 
 export async function buyBoostMaterials(ns: NS, division: Division): Promise<void> {
+    // This method is only called in round 3+. If we don't have more than 10e9 in funds, there must be something wrong
+    // in the script.
+    const funds = ns.corporation.getCorporation().funds;
+    if (funds < 10e9) {
+        throw new Error(`Funds is too small to buy boost materials. Funds: ${ns.formatNumber(funds)}.`);
+    }
     const industryData = ns.corporation.getIndustryData(division.type);
     let reservedSpaceRatio = 0.2;
     const ratio = 0.1;
@@ -1427,7 +1438,8 @@ export async function buyBoostMaterials(ns: NS, division: Division): Promise<voi
         await stockMaterials(
             ns,
             division.name,
-            orders
+            orders,
+            true
         );
         ++count;
     }
@@ -1455,5 +1467,14 @@ export function createDummyDivisions(ns: NS, numberOfDivisions: number) {
             continue;
         }
         ns.corporation.expandIndustry(IndustryType.RESTAURANT, dummyDivisionName);
+        const division = ns.corporation.getDivision(dummyDivisionName);
+        for (const city of cities) {
+            if (!division.cities.includes(city)) {
+                ns.corporation.expandCity(dummyDivisionName, city);
+            }
+            if (!ns.corporation.hasWarehouse(dummyDivisionName, city)) {
+                ns.corporation.purchaseWarehouse(dummyDivisionName, city);
+            }
+        }
     }
 }

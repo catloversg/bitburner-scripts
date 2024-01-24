@@ -6,6 +6,7 @@ import {CorpUpgradesData} from "/data/CorpUpgradesData";
 declare global {
     // eslint-disable-next-line no-var
     var Player: {
+        money: number;
         corporation: Corporation
     };
     // eslint-disable-next-line no-var
@@ -71,6 +72,7 @@ export interface Corporation {
     storedCycles: number;
     divisions: Map<string, Division>;
     upgrades: Record<UpgradeName, { level: number, value: number }>;
+    valuation: number;
     cycleCount: number;
 }
 

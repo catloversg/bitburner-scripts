@@ -120,46 +120,94 @@ export const precalculatedEmployeeRatioForSupportDivisions = {
     management: 0.148
 };
 
+// export const precalculatedEmployeeRatioForProfitSetupOfRound3 = {
+//     operations: 50 / 174, // 0.28735632183908045977011494252874
+//     engineer: 6 / 174, // 0.03448275862068965517241379310345
+//     business: 82 / 174, // 0.47126436781609195402298850574713
+//     management: 36 / 174 // 0.20689655172413793103448275862069
+// };
+//
+// export const precalculatedEmployeeRatioForProfitSetupOfRound4 = {
+//     operations: 80 / 441, // 0.18140589569160997732426303854875
+//     engineer: 14 / 441, // 0.03174603174603174603174603174603
+//     business: 294 / 441, // 0.66666666666666666666666666666667
+//     management: 53 / 441 // 0.12018140589569160997732426303855
+// };
+
+/*
+10t
+ */
 export const precalculatedEmployeeRatioForProfitSetupOfRound3 = {
-    operations: 50 / 174, // 0.28735632183908045977011494252874
-    engineer: 6 / 174, // 0.03448275862068965517241379310345
-    business: 82 / 174, // 0.47126436781609195402298850574713
-    management: 36 / 174 // 0.20689655172413793103448275862069
+    operations: 49 / 138, // 0.35507246376811594202898550724638
+    engineer: 5 / 138, // 0.03623188405797101449275362318841
+    business: 51 / 138, // 0.36956521739130434782608695652174
+    management: 33 / 138 // 0.23913043478260869565217391304348
 };
 
 export const precalculatedEmployeeRatioForProfitSetupOfRound4 = {
-    operations: 80 / 441, // 0.18140589569160997732426303854875
-    engineer: 14 / 441, // 0.03174603174603174603174603174603
-    business: 294 / 441, // 0.66666666666666666666666666666667
-    management: 53 / 441 // 0.12018140589569160997732426303855
+    operations: 68 / 369, // 0.18428184281842818428184281842818
+    engineer: 12 / 369, // 0.03252032520325203252032520325203
+    business: 244 / 369, // 0.66124661246612466124661246612466
+    management: 45 / 369 // 0.12195121951219512195121951219512
 };
 
+// export const precalculatedEmployeeRatioForProductDivisionRound3 = {
+//     operations: 0.029,
+//     engineer: 0.523,
+//     business: 0.006,
+//     management: 0.443
+// };
+//
+// export const precalculatedEmployeeRatioForProductDivisionRound4 = {
+//     operations: 0.029,
+//     engineer: 0.524,
+//     business: 0.01,
+//     management: 0.436
+// };
+//
+// export const precalculatedEmployeeRatioForProductDivisionRound5_1 = {
+//     operations: 0.032,
+//     engineer: 0.464,
+//     business: 0.067,
+//     management: 0.437
+// };
+//
+// export const precalculatedEmployeeRatioForProductDivisionRound5_2 = {
+//     operations: 0.084,
+//     engineer: 0.260,
+//     business: 0.379,
+//     management: 0.277
+// };
+
+/*
+10t
+ */
 export const precalculatedEmployeeRatioForProductDivisionRound3 = {
-    operations: 0.029,
-    engineer: 0.523,
-    business: 0.006,
-    management: 0.443
+    operations: 0.037,
+    engineer: 0.513,
+    business: 0.011,
+    management: 0.44
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound4 = {
-    operations: 0.029,
-    engineer: 0.524,
-    business: 0.01,
+    operations: 0.03,
+    engineer: 0.531,
+    business: 0.003,
     management: 0.436
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound5_1 = {
     operations: 0.032,
-    engineer: 0.464,
+    engineer: 0.462,
     business: 0.067,
-    management: 0.437
+    management: 0.439
 };
 
 export const precalculatedEmployeeRatioForProductDivisionRound5_2 = {
-    operations: 0.084,
-    engineer: 0.260,
-    business: 0.379,
-    management: 0.277
+    operations: 0.064,
+    engineer: 0.317,
+    business: 0.298,
+    management: 0.321
 };
 
 export async function getReferenceData(
@@ -701,10 +749,14 @@ export class CorporationBenchmark {
         industryData: CorpIndustryData,
         currentWilsonLevel: number,
         currentAdvertLevel: number,
+        currentAwareness: number,
+        currentPopularity: number,
         divisionResearches: DivisionResearches,
         maxCost: number,
         enableLogging = false
     ): WilsonAdvertBenchmarkData[] {
+        awarenessMap.clear();
+        popularityMap.clear();
         if (currentWilsonLevel < 0 || currentAdvertLevel < 0) {
             throw new Error("Invalid parameter");
         }
@@ -725,8 +777,8 @@ export class CorporationBenchmark {
                 if (totalCost > maxCost) {
                     break;
                 }
-                const previousAwareness = awarenessMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
-                const previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? 0;
+                const previousAwareness = awarenessMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? currentAwareness;
+                const previousPopularity = popularityMap.get(`${wilsonLevel}|${advertLevel - 1}`) ?? currentPopularity;
                 const advertisingMultiplier = (1 + CorpUpgradesData[UpgradeName.WILSON_ANALYTICS].benefit * wilsonLevel) * researchAdvertisingMultiplier;
                 let awareness = (previousAwareness + 3 * advertisingMultiplier) * (1.005 * advertisingMultiplier);
                 // Hard-coded value of getRandomInt(1, 3). We don't want RNG here.
