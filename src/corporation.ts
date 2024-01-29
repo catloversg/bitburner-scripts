@@ -55,10 +55,10 @@ import {
     waitUntilAfterStateHappens,
     waitUntilHavingEnoughResearchPoints
 } from "/corporationUtils";
-import {optimizeOffice} from "/corporationBenchmarkTools";
+import {optimizeOffice} from "/corporationOptimizerTools";
 import {
     BalancingModifierForProfitProgress,
-    CorporationBenchmark,
+    CorporationOptimizer,
     defaultPerformanceModifierForOfficeBenchmark,
     OfficeBenchmarkSortType,
     precalculatedEmployeeRatioForProductDivisionRound3,
@@ -68,7 +68,7 @@ import {
     precalculatedEmployeeRatioForProfitSetupOfRound3,
     precalculatedEmployeeRatioForProfitSetupOfRound4,
     precalculatedEmployeeRatioForSupportDivisions
-} from "/corporationBenchmark";
+} from "/corporationOptimizer";
 import * as testingTools from "/corporationTestingTools";
 import {corporationEventLogger} from "/corporationEventLogger";
 import {exposePlayerObject} from "/exploits";
@@ -184,7 +184,7 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
     const targetAdvertLevel = 2;
     const advertCost = getAdVertCost(ns.corporation.getHireAdVertCount(DivisionName.AGRICULTURE), targetAdvertLevel);
 
-    const dataArray = new CorporationBenchmark().optimizeStorageAndFactory(
+    const dataArray = new CorporationOptimizer().optimizeStorageAndFactory(
         agricultureIndustryData,
         ns.corporation.getUpgradeLevel(UpgradeName.SMART_STORAGE),
         // Assume that all warehouses are at the same level
@@ -293,7 +293,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
 
     buyAdvert(ns, DivisionName.AGRICULTURE, 8);
 
-    const dataArray = new CorporationBenchmark().optimizeStorageAndFactory(
+    const dataArray = new CorporationOptimizer().optimizeStorageAndFactory(
         agricultureIndustryData,
         ns.corporation.getUpgradeLevel(UpgradeName.SMART_STORAGE),
         // Assume that all warehouses are at the same level
@@ -1080,7 +1080,7 @@ function improveProductDivisionRawProduction(
     divisionResearches: DivisionResearches,
     budget: number,
     dryRun: boolean,
-    benchmark: CorporationBenchmark,
+    benchmark: CorporationOptimizer,
     enableLogging: boolean
 ): void {
     const logger = new Logger(enableLogging);
@@ -1121,7 +1121,7 @@ function improveProductDivisionWilsonAdvert(
     divisionResearches: DivisionResearches,
     budget: number,
     dryRun: boolean,
-    benchmark: CorporationBenchmark,
+    benchmark: CorporationOptimizer,
     enableLogging: boolean
 ): void {
     const logger = new Logger(enableLogging);
@@ -1398,7 +1398,7 @@ async function improveProductDivision(
     const division = ns.corporation.getDivision(divisionName);
     const industryData = ns.corporation.getIndustryData(division.type);
     const divisionResearches = getDivisionResearches(ns, divisionName);
-    const benchmark = new CorporationBenchmark();
+    const benchmark = new CorporationOptimizer();
     const currentFunds = ns.corporation.getCorporation().funds;
 
     if (getProfit(ns) >= thresholdOfFocusingOnAdvert) {

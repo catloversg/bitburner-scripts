@@ -637,7 +637,7 @@ export async function calculateOfficeBenchmarkData(
     };
 }
 
-export class CorporationBenchmark {
+export class CorporationOptimizer {
     public getScriptUrl(): string {
         return import.meta.url;
     }
@@ -931,4 +931,4 @@ export class CorporationBenchmark {
     }
 }
 
-comlink.expose(new CorporationBenchmark());
+comlink.expose(new CorporationOptimizer());

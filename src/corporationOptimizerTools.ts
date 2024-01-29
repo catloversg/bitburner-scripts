@@ -5,7 +5,7 @@ import {
     BalancingModifierForProfitProgress,
     BenchmarkType,
     ComparatorCustomData,
-    CorporationBenchmark,
+    CorporationOptimizer,
     defaultPerformanceModifierForOfficeBenchmark,
     EmployeeJobRequirement,
     getComparator,
@@ -14,7 +14,7 @@ import {
     OfficeBenchmarkCustomData,
     OfficeBenchmarkData,
     OfficeBenchmarkSortType
-} from "/corporationBenchmark";
+} from "/corporationOptimizer";
 import {calculateEmployeeStats, CityName, formatNumber, ResearchName} from "/corporationFormulas";
 import {
     getCorporationUpgradeLevels,
@@ -26,7 +26,7 @@ import {
 import {generateBlobUrl} from "/scriptUtils";
 import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
 
-let workerModuleUrl = new CorporationBenchmark().getScriptUrl();
+let workerModuleUrl = new CorporationOptimizer().getScriptUrl();
 
 async function validateWorkerModuleUrl(ns: NS): Promise<void> {
     let fetchResult;
@@ -40,13 +40,13 @@ async function validateWorkerModuleUrl(ns: NS): Promise<void> {
         valid = false;
     }
     if (!valid) {
-        workerModuleUrl = generateBlobUrl(ns, "corporationBenchmark.js" as ScriptFilePath);
+        workerModuleUrl = generateBlobUrl(ns, "corporationOptimizer.js" as ScriptFilePath);
     }
 }
 
 type Workload = (
     worker: Worker,
-    workerWrapper: Remote<CorporationBenchmark>,
+    workerWrapper: Remote<CorporationOptimizer>,
     operationsJob: {
         min: number;
         max: number;
@@ -96,7 +96,7 @@ async function splitWorkload(
         logger.log(`from: ${from}, to: ${to}`);
         const worker = new Worker(workerModuleUrl, {type: "module"});
         workers.push(worker);
-        const workerWrapper = comlink.wrap<CorporationBenchmark>(worker);
+        const workerWrapper = comlink.wrap<CorporationOptimizer>(worker);
         promises.push(
             workload(
                 worker,
@@ -266,7 +266,7 @@ export async function optimizeOffice(
     let error: unknown;
     const workload: Workload = async (
         worker: Worker,
-        workerWrapper: Remote<CorporationBenchmark>,
+        workerWrapper: Remote<CorporationOptimizer>,
         operationsJob: {
             min: number;
             max: number;
