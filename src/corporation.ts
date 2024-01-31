@@ -459,8 +459,8 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
     const chemicalDivision = ns.corporation.getDivision(DivisionName.CHEMICAL);
     const tobaccoDivision = ns.corporation.getDivision(DivisionName.TOBACCO);
 
-    const agricultureDivisionBudget = 500e9;
-    const chemicalDivisionBudget = 110e9;
+    const agricultureDivisionBudget = 150e9;
+    const chemicalDivisionBudget = 30e9;
 
     // division.productionMult is 0 when division is created. It will be updated in next state.
     while (ns.corporation.getDivision(DivisionName.TOBACCO).productionMult === 0) {
@@ -565,7 +565,7 @@ async function improveAllDivisions(): Promise<void> {
             // Prioritize Advert
             if (profit >= thresholdOfFocusingOnAdvert) {
                 const currentAdvertLevel = ns.corporation.getHireAdVertCount(DivisionName.TOBACCO);
-                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.3);
+                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.6);
                 if (maxAdvertLevel > currentAdvertLevel) {
                     buyAdvert(ns, DivisionName.TOBACCO, maxAdvertLevel);
                 }
@@ -986,7 +986,7 @@ async function improveSupportDivision(
     const office = ns.corporation.getOffice(divisionName, city);
     const maxOfficeSize = getMaxAffordableOfficeSize(office.size, officeBudget);
     logger.log(`City: ${city}. currentOfficeSize: ${office.size}, maxOfficeSize: ${maxOfficeSize}`);
-    if (maxOfficeSize < 9) {
+    if (maxOfficeSize < 6) {
         throw new Error(`Budget for office is too low. Division: ${divisionName}. Office's budget: ${ns.formatNumber(officeBudget)}`);
     }
     const rndEmployee = Math.min(

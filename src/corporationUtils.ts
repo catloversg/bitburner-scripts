@@ -69,10 +69,10 @@ const costMultiplierForProductionResearch = 10;
 
 export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
     {research: ResearchName.HI_TECH_RND_LABORATORY, costMultiplier: 1},
-    {research: ResearchName.AUTO_DRUG, costMultiplier: 13.5},
-    {research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch},
     {research: ResearchName.OVERCLOCK, costMultiplier: costMultiplierForEmployeeStatsResearch},
     {research: ResearchName.STIMU, costMultiplier: costMultiplierForEmployeeStatsResearch},
+    {research: ResearchName.AUTO_DRUG, costMultiplier: 13.5},
+    {research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch},
     {research: ResearchName.CPH4_INJECT, costMultiplier: costMultiplierForEmployeeStatsResearch},
 
     {research: ResearchName.SELF_CORRECTING_ASSEMBLERS, costMultiplier: costMultiplierForProductionResearch},
