@@ -46,6 +46,7 @@ interface NewProductEvent extends CorporationEvent {
     cycle: number;
     newestProduct: Product;
     lastProduct?: Product;
+    researchPoints: number;
 }
 
 interface SkipDevelopingNewProductEvent extends CorporationEvent {
@@ -188,7 +189,8 @@ class CorporationEventLogger {
         const newProductEvent: NewProductEvent = {
             cycle: this.cycle,
             newestProduct: ns.corporation.getProduct(divisionName, CityName.Sector12, products[products.length - 1]),
-            lastProduct: lastProduct
+            lastProduct: lastProduct,
+            researchPoints: ns.corporation.getDivision(divisionName).researchPoints
         };
         this.#events.push(newProductEvent);
         this.limitNumberOfEvents();
@@ -304,7 +306,7 @@ export function analyseEventData(eventData: string): void {
     let currentMilestonesIndex = 0;
     for (const event of events) {
         if (isNewProductEvent(event)) {
-            console.log(`${event.cycle}: newest product: ${event.newestProduct.name}`);
+            console.log(`${event.cycle}: newest product: ${event.newestProduct.name}, RP: ${formatNumber(event.researchPoints)}`);
             continue;
         }
         if (isSkipDevelopingNewProductEvent(event)) {

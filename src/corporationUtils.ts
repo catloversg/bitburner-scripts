@@ -1478,3 +1478,22 @@ export function createDummyDivisions(ns: NS, numberOfDivisions: number) {
         }
     }
 }
+
+export async function waitForOffer(ns: NS, maxAdditionalCycle: number, expectedOffer: number) {
+    await waitForNumberOfCycles(ns, 10);
+    let offer = ns.corporation.getInvestmentOffer().funds;
+    for (let i = 0; i < maxAdditionalCycle; i++) {
+        await waitForNumberOfCycles(ns, 1);
+        console.log(`Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        if (ns.corporation.getInvestmentOffer().funds < offer * 1.001) {
+            break;
+        }
+        offer = ns.corporation.getInvestmentOffer().funds;
+    }
+    if (ns.corporation.getInvestmentOffer().funds < expectedOffer) {
+        ns.alert(
+            `Offer is lower than expected value. Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`
+            + `. Expected value: ${ns.formatNumber(expectedOffer)}.`
+        );
+    }
+}

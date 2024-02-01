@@ -52,6 +52,7 @@ import {
     upgradeOffices,
     upgradeWarehouse,
     waitForNumberOfCycles,
+    waitForOffer,
     waitUntilAfterStateHappens,
     waitUntilHavingEnoughResearchPoints
 } from "/corporationUtils";
@@ -94,7 +95,6 @@ interface Round2Option {
 }
 
 const PrecalculatedRound2Option = {
-    // Minimum funds at start: 431b
     OPTION1: <Round2Option>{
         waitForAgricultureRP: 460,
         waitForChemicalRP: 300,
@@ -158,6 +158,7 @@ let budgetRatioForProductDivision = defaultBudgetRatioForProductDivision;
 
 const defaultConfig: NetscriptFlagsSchema = [
     ["benchmark", false],
+    ["auto", false],
     ["selfFund", false],
     ["round1", false],
     ["round2", false],
@@ -246,18 +247,22 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
             ]
         )
     );
+
+    if (config.auto === true) {
+        await waitForOffer(ns, 5, 490e9);
+        ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        corporationEventLogger.generateOfferAcceptanceEvent(ns);
+        ns.corporation.acceptInvestmentOffer();
+        await round2();
+    }
 }
 
 async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1): Promise<void> {
     ns.print(`Use: ${JSON.stringify(option)}`);
 
-    if (enableTestingTools) {
+    if (enableTestingTools && config.auto === false) {
         resetStatistics();
         testingTools.setFunds(431e9);
-    }
-    const startingBudget = ns.corporation.getCorporation().funds;
-    if (startingBudget < 431e9) {
-        throw new Error("Your budget is too low");
     }
 
     buyUnlock(ns, UnlockName.EXPORT);
@@ -314,7 +319,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
     }
 
-    if (enableTestingTools) {
+    if (enableTestingTools && config.auto === false) {
         testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
         testingTools.setEnergyAndMorale(DivisionName.CHEMICAL, 100, 100);
         testingTools.setResearchPoints(DivisionName.AGRICULTURE, option.waitForAgricultureRP);
@@ -337,6 +342,15 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
 
     await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
     await buyTeaAndThrowParty(ns, DivisionName.CHEMICAL);
+
+    buyAdvert(
+        ns,
+        DivisionName.AGRICULTURE,
+        getMaxAffordableAdVertLevel(
+            ns.corporation.getHireAdVertCount(DivisionName.AGRICULTURE),
+            ns.corporation.getCorporation().funds
+        )
+    );
 
     assignJobs(
         ns,
@@ -411,6 +425,14 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
             )
         )
     ]);
+
+    if (config.auto === true) {
+        await waitForOffer(ns, 10, 11e12);
+        ns.print(`Round 2: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        corporationEventLogger.generateOfferAcceptanceEvent(ns);
+        ns.corporation.acceptInvestmentOffer();
+        await round3();
+    }
 }
 
 async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1): Promise<void> {
@@ -421,13 +443,9 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
 
     ns.print(`Use: ${JSON.stringify(option)}`);
 
-    if (enableTestingTools) {
+    if (enableTestingTools && config.auto === false) {
         resetStatistics();
         testingTools.setFunds(11e12);
-    }
-    const startingBudget = ns.corporation.getCorporation().funds;
-    if (startingBudget < 10e12) {
-        throw new Error("Your budget is too low");
     }
 
     buyUnlock(ns, UnlockName.MARKET_RESEARCH_DEMAND);
@@ -630,8 +648,15 @@ async function improveAllDivisions(): Promise<void> {
                         getNewestProduct()
                     );
 
-                    await waitForNumberOfCycles(ns, 15);
-                    cycleCount += 15;
+                    let expectedOffer = Number.MAX_VALUE;
+                    if (currentRound === 3) {
+                        expectedOffer = 1e16;
+                    } else if (currentRound === 4) {
+                        expectedOffer = 1e20;
+                    }
+                    const currentCycle = corporationEventLogger.cycle;
+                    await waitForOffer(ns, 5, expectedOffer);
+                    cycleCount += (corporationEventLogger.cycle - currentCycle);
                     console.log(
                         `Cycle: ${cycleCount}. `
                         + `Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`
