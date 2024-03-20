@@ -38,11 +38,11 @@ export async function main(ns: NS): Promise<void> {
         let finish = true;
         for (const city of cities) {
             const office = ns.corporation.getOffice(divisionName, city);
-            if (office.avgEnergy < 98) {
+            if (office.avgEnergy < 99.5) {
                 ns.corporation.buyTea(divisionName, city);
                 finish = false;
             }
-            if (office.avgMorale < 98) {
+            if (office.avgMorale < 99.5) {
                 ns.corporation.throwParty(divisionName, city, 500000);
                 finish = false;
             }
