@@ -248,13 +248,21 @@ function getGenericUpgradeCost(basePrice: number, priceMultiplier: number, fromL
     return basePrice * ((Math.pow(priceMultiplier, toLevel) - Math.pow(priceMultiplier, fromLevel)) / (priceMultiplier - 1));
 }
 
-function getGenericMaxAffordableUpgradeLevel(basePrice: number, priceMultiplier: number, fromLevel: number, maxCost: number): number {
-    return Math.floor(
-        Math.log(
-            maxCost * (priceMultiplier - 1) / basePrice + Math.pow(priceMultiplier, fromLevel)
-        )
-        / Math.log(priceMultiplier)
-    );
+function getGenericMaxAffordableUpgradeLevel(
+    basePrice: number,
+    priceMultiplier: number,
+    fromLevel: number,
+    maxCost: number,
+    roundingWithFloor = true): number {
+    const maxAffordableUpgradeLevel = Math.log(
+        maxCost * (priceMultiplier - 1) / basePrice + Math.pow(priceMultiplier, fromLevel)
+    ) / Math.log(priceMultiplier);
+    if (roundingWithFloor) {
+        return Math.floor(
+            maxAffordableUpgradeLevel
+        );
+    }
+    return maxAffordableUpgradeLevel;
 }
 
 export function getUpgradeCost(upgradeName: CorpUpgradeName, fromLevel: number, toLevel: number): number {
@@ -324,7 +332,7 @@ export function getOfficeUpgradeCost(fromSize: number, toSize: number): number {
 }
 
 export function getMaxAffordableOfficeSize(fromSize: number, maxCost: number): number {
-    return 3 * getGenericMaxAffordableUpgradeLevel(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), maxCost);
+    return 3 * getGenericMaxAffordableUpgradeLevel(officeUpgradeBasePrice, 1.09, Math.ceil(fromSize / 3), maxCost, false);
 }
 
 export function getAdVertCost(fromLevel: number, toLevel: number): number {
