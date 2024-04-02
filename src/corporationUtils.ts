@@ -9,9 +9,9 @@ import {
     Product,
     Warehouse
 } from "@ns";
-import {getRecordEntries, getRecordKeys, PartialRecord} from "/libs/Record";
-import {parseNumber} from "/libs/utils";
-import {Ceres} from "/libs/Ceres";
+import { getRecordEntries, getRecordKeys, PartialRecord } from "/libs/Record";
+import { parseNumber } from "/libs/utils";
+import { Ceres } from "/libs/Ceres";
 import {
     CeresSolverResult,
     CityName,
@@ -38,7 +38,7 @@ import {
     UnlockName,
     UpgradeName
 } from "/corporationFormulas";
-import {CorpMaterialsData} from "/data/CorpMaterialsData";
+import { CorpMaterialsData } from "/data/CorpMaterialsData";
 
 export enum DivisionName {
     AGRICULTURE = "Agriculture",
@@ -68,22 +68,22 @@ const costMultiplierForEmployeeStatsResearch = 5;
 const costMultiplierForProductionResearch = 10;
 
 export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
-    {research: ResearchName.HI_TECH_RND_LABORATORY, costMultiplier: 1},
-    {research: ResearchName.OVERCLOCK, costMultiplier: costMultiplierForEmployeeStatsResearch},
-    {research: ResearchName.STIMU, costMultiplier: costMultiplierForEmployeeStatsResearch},
-    {research: ResearchName.AUTO_DRUG, costMultiplier: 13.5},
-    {research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch},
-    {research: ResearchName.CPH4_INJECT, costMultiplier: costMultiplierForEmployeeStatsResearch},
+    { research: ResearchName.HI_TECH_RND_LABORATORY, costMultiplier: 1 },
+    { research: ResearchName.OVERCLOCK, costMultiplier: costMultiplierForEmployeeStatsResearch },
+    { research: ResearchName.STIMU, costMultiplier: costMultiplierForEmployeeStatsResearch },
+    { research: ResearchName.AUTO_DRUG, costMultiplier: 13.5 },
+    { research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch },
+    { research: ResearchName.CPH4_INJECT, costMultiplier: costMultiplierForEmployeeStatsResearch },
 
-    {research: ResearchName.SELF_CORRECTING_ASSEMBLERS, costMultiplier: costMultiplierForProductionResearch},
-    {research: ResearchName.DRONES, costMultiplier: 50},
-    {research: ResearchName.DRONES_ASSEMBLY, costMultiplier: costMultiplierForProductionResearch},
-    {research: ResearchName.DRONES_TRANSPORT, costMultiplier: costMultiplierForProductionResearch},
+    { research: ResearchName.SELF_CORRECTING_ASSEMBLERS, costMultiplier: costMultiplierForProductionResearch },
+    { research: ResearchName.DRONES, costMultiplier: 50 },
+    { research: ResearchName.DRONES_ASSEMBLY, costMultiplier: costMultiplierForProductionResearch },
+    { research: ResearchName.DRONES_TRANSPORT, costMultiplier: costMultiplierForProductionResearch },
 ];
 
 export const researchPrioritiesForProductDivision: ResearchPriority[] = [
     ...researchPrioritiesForSupportDivision,
-    {research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch},
+    { research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch },
     // Do not buy these researches
     // {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: costMultiplierForProductionResearch},
     // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: costMultiplierForProductionResearch},
@@ -200,11 +200,19 @@ export async function loopAllDivisionsAndCitiesAsyncCallback(
 
 export async function waitUntilAfterStateHappens(ns: NS, state: CorpState): Promise<void> {
     while (true) {
-        if (ns.corporation.getCorporation().nextState === state) {
-            await ns.corporation.nextUpdate();
+        if (ns.corporation.getCorporation().prevState === state) {
             break;
         }
         await ns.corporation.nextUpdate();
+    }
+}
+
+export async function waitForNextTimeStateHappens(ns: NS, state: CorpState): Promise<void> {
+    while (true) {
+        await ns.corporation.nextUpdate();
+        if (ns.corporation.getCorporation().prevState === state) {
+            break;
+        }
     }
 }
 
@@ -212,7 +220,7 @@ export async function waitForNumberOfCycles(ns: NS, numberOfCycles: number): Pro
     const currentState = ns.corporation.getCorporation().prevState;
     let count = 0;
     while (count < numberOfCycles) {
-        await waitUntilAfterStateHappens(ns, currentState as CorpState);
+        await waitForNextTimeStateHappens(ns, currentState as CorpState);
         ++count;
     }
 }
@@ -275,23 +283,15 @@ export function upgradeWarehouse(ns: NS, divisionName: string, city: CityName, t
  */
 export async function buyTeaAndThrowParty(ns: NS, divisionName: string): Promise<void> {
     const epsilon = 0.5;
-    let minAcceptableEnergy = 99;
-    let minAcceptableMorale = 99;
-    if (ns.corporation.hasResearched(divisionName, ResearchName.GO_JUICE)) {
-        minAcceptableEnergy = 109;
-    }
-    if (ns.corporation.hasResearched(divisionName, ResearchName.STIMU)) {
-        minAcceptableMorale = 109;
-    }
     while (true) {
         let finish = true;
         for (const city of cities) {
             const office = ns.corporation.getOffice(divisionName, city);
-            if (office.avgEnergy < minAcceptableEnergy + epsilon) {
+            if (office.avgEnergy < office.maxEnergy - epsilon) {
                 ns.corporation.buyTea(divisionName, city);
                 finish = false;
             }
-            if (office.avgMorale < minAcceptableMorale + epsilon) {
+            if (office.avgMorale < office.maxMorale - epsilon) {
                 ns.corporation.throwParty(divisionName, city, 500000);
                 finish = false;
             }
@@ -317,22 +317,109 @@ export function buyTeaAndThrowPartyForAllDivisions(ns: NS): void {
     }
     const epsilon = 0.5;
     loopAllDivisionsAndCities(ns, (divisionName: string, city: CityName) => {
-        let minAcceptableEnergy = 99;
-        let minAcceptableMorale = 99;
-        if (ns.corporation.hasResearched(divisionName, ResearchName.GO_JUICE)) {
-            minAcceptableEnergy = 109;
-        }
-        if (ns.corporation.hasResearched(divisionName, ResearchName.STIMU)) {
-            minAcceptableMorale = 109;
-        }
         const office = ns.corporation.getOffice(divisionName, city);
-        if (office.avgEnergy < minAcceptableEnergy + epsilon) {
+        if (office.avgEnergy < office.maxEnergy - epsilon) {
             ns.corporation.buyTea(divisionName, city);
         }
-        if (office.avgMorale < minAcceptableMorale + epsilon) {
+        if (office.avgMorale < office.maxMorale - epsilon) {
             ns.corporation.throwParty(divisionName, city, 500000);
         }
     });
+}
+
+export function generateOfficeSetupsForEarlyRounds(size: number, increaseBusiness = false): OfficeSetup[] {
+    let officeSetup;
+    switch (size) {
+        case 3:
+            officeSetup = [
+                { name: EmployeePosition.OPERATIONS, count: 1 },
+                { name: EmployeePosition.ENGINEER, count: 1 },
+                { name: EmployeePosition.BUSINESS, count: 1 },
+                { name: EmployeePosition.MANAGEMENT, count: 0 },
+            ];
+            break;
+        case 4:
+            officeSetup = [
+                { name: EmployeePosition.OPERATIONS, count: 1 },
+                { name: EmployeePosition.ENGINEER, count: 1 },
+                { name: EmployeePosition.BUSINESS, count: 1 },
+                { name: EmployeePosition.MANAGEMENT, count: 1 },
+            ];
+            break;
+        case 5:
+            officeSetup = [
+                { name: EmployeePosition.OPERATIONS, count: 2 },
+                { name: EmployeePosition.ENGINEER, count: 1 },
+                { name: EmployeePosition.BUSINESS, count: 1 },
+                { name: EmployeePosition.MANAGEMENT, count: 1 },
+            ];
+            break;
+        case 6:
+            if (increaseBusiness) {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 2 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 2 },
+                    { name: EmployeePosition.MANAGEMENT, count: 1 },
+                ];
+
+            } else {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 2 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 1 },
+                    { name: EmployeePosition.MANAGEMENT, count: 2 },
+                ];
+            }
+            break;
+        case 7:
+            if (increaseBusiness) {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 2 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 2 },
+                    { name: EmployeePosition.MANAGEMENT, count: 2 },
+                ];
+
+            } else {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 3 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 1 },
+                    { name: EmployeePosition.MANAGEMENT, count: 2 },
+                ];
+            }
+            break;
+        case 8:
+            if (increaseBusiness) {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 3 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 2 },
+                    { name: EmployeePosition.MANAGEMENT, count: 2 },
+                    // { name: EmployeePosition.OPERATIONS, count: 2 },
+                    // { name: EmployeePosition.ENGINEER, count: 1 },
+                    // { name: EmployeePosition.BUSINESS, count: 3 },
+                    // { name: EmployeePosition.MANAGEMENT, count: 2 },
+                ];
+
+            } else {
+                officeSetup = [
+                    { name: EmployeePosition.OPERATIONS, count: 3 },
+                    { name: EmployeePosition.ENGINEER, count: 1 },
+                    { name: EmployeePosition.BUSINESS, count: 1 },
+                    { name: EmployeePosition.MANAGEMENT, count: 3 },
+                ];
+            }
+            break;
+        default:
+            throw new Error(`Invalid office size: ${size}`);
+    }
+    return generateOfficeSetups(
+        cities,
+        size,
+        officeSetup
+    );
 }
 
 export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
@@ -345,6 +432,7 @@ export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
         Business: 0,
         Management: 0,
         "Research & Development": 0,
+        Intern: 0,
     };
     for (const job of jobs) {
         switch (job.name) {
@@ -363,12 +451,14 @@ export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
             case EmployeePosition.RESEARCH_DEVELOPMENT:
                 officeSetupJobs["Research & Development"] = job.count;
                 break;
+            case EmployeePosition.INTERN:
+                officeSetupJobs.Intern = job.count;
+                break;
             default:
                 throw new Error(`Invalid job: ${job.name}`);
         }
     }
     const officeSetups: OfficeSetup[] = [];
-    // const officeSetupJobs
     for (const city of cities) {
         officeSetups.push({
             city: city,
@@ -456,14 +546,8 @@ export async function stockMaterials(
     bulkPurchase = false,
     discardExceeded = false
 ): Promise<void> {
-    let nsExited = false;
-    // Clear purchase order of boost materials when script exits
-    ns.atExit(() => {
-        nsExited = true;
-        clearPurchaseOrders(ns, false);
-    });
     let count = 0;
-    while (!nsExited) {
+    while (true) {
         if (count === 5) {
             const warningMessage = `It takes too many cycles to stock up on materials. Division: ${divisionName}, `
                 + `orders: ${JSON.stringify(orders)}`;
@@ -500,7 +584,7 @@ export async function stockMaterials(
         if (finish) {
             break;
         }
-        await waitUntilAfterStateHappens(ns, CorpState.PURCHASE);
+        await waitForNextTimeStateHappens(ns, CorpState.PURCHASE);
         ++count;
     }
 }
@@ -556,7 +640,21 @@ export function getDivisionResearches(ns: NS, divisionName: string): DivisionRes
 export async function createDivision(ns: NS, divisionName: string, officeSize: number, warehouseLevel: number): Promise<Division> {
     // Create division if not exists
     if (!hasDivision(ns, divisionName)) {
-        ns.corporation.expandIndustry(<CorpIndustryName>divisionName, divisionName);
+        let industryType;
+        switch (divisionName) {
+            case DivisionName.AGRICULTURE:
+                industryType = IndustryType.AGRICULTURE;
+                break;
+            case DivisionName.CHEMICAL:
+                industryType = IndustryType.CHEMICAL;
+                break;
+            case DivisionName.TOBACCO:
+                industryType = IndustryType.TOBACCO;
+                break;
+            default:
+                throw new Error(`Invalid division name: ${divisionName}`);
+        }
+        ns.corporation.expandIndustry(industryType, divisionName);
     }
     const division = ns.corporation.getDivision(divisionName);
     ns.print(`Initializing division: ${divisionName}`);
@@ -602,7 +700,7 @@ export function getOptimalBoostMaterialQuantities(
     spaceConstraint: number,
     round: boolean = true
 ): number[] {
-    const {aiCoreFactor, hardwareFactor, realEstateFactor, robotFactor} = industryData;
+    const { aiCoreFactor, hardwareFactor, realEstateFactor, robotFactor } = industryData;
     const boostMaterialCoefficients = [aiCoreFactor!, hardwareFactor!, realEstateFactor!, robotFactor!];
     const boostMaterialSizes = boostMaterials.map(mat => CorpMaterialsData[mat].size);
 
@@ -662,14 +760,11 @@ function buildSmartSupplyKey(divisionName: string, city: CityName): string {
     return `${divisionName}|${city}`;
 }
 
-export function getLimitedRawProduction(
+export function getRawProduction(
     ns: NS,
     division: Division,
     city: CityName,
-    industrialData: CorpIndustryData,
-    warehouse: Warehouse,
-    isProduct: boolean,
-    productSize?: number
+    isProduct: boolean
 ): number {
     const office = ns.corporation.getOffice(division.name, city);
     let rawProduction = getDivisionRawProduction(
@@ -684,6 +779,19 @@ export function getLimitedRawProduction(
         getDivisionResearches(ns, division.name)
     );
     rawProduction = rawProduction * 10;
+    return rawProduction;
+}
+
+export function getLimitedRawProduction(
+    ns: NS,
+    division: Division,
+    city: CityName,
+    industrialData: CorpIndustryData,
+    warehouse: Warehouse,
+    isProduct: boolean,
+    productSize?: number
+): number {
+    let rawProduction = getRawProduction(ns, division, city, isProduct);
 
     // Calculate required storage space of each output unit. It is the net change in warehouse's storage space when
     // producing an output unit.
@@ -882,7 +990,7 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
 
         // Find which input material creates the least number of output units
         let leastAmountOfOutputUnits = Number.MAX_VALUE;
-        for (const {requiredQuantity, coefficient} of Object.values(inputMaterials)) {
+        for (const { requiredQuantity, coefficient } of Object.values(inputMaterials)) {
             const amountOfOutputUnits = requiredQuantity / coefficient;
             if (amountOfOutputUnits < leastAmountOfOutputUnits) {
                 leastAmountOfOutputUnits = amountOfOutputUnits;
@@ -1388,7 +1496,7 @@ export async function buyBoostMaterials(ns: NS, division: Division): Promise<voi
     }
     let count = 0;
     while (true) {
-        await waitUntilAfterStateHappens(ns, CorpState.EXPORT);
+        await waitForNextTimeStateHappens(ns, CorpState.EXPORT);
         if (count === 20) {
             const warningMessage = `It takes too many cycles to buy boost materials. Division: ${division.name}.`;
             showWarning(ns, warningMessage);
@@ -1459,7 +1567,7 @@ export function getProductMarketPrice(
     return productMarketPrice * productMarketPriceMultiplier;
 }
 
-export function createDummyDivisions(ns: NS, numberOfDivisions: number) {
+export function createDummyDivisions(ns: NS, numberOfDivisions: number): void {
     const divisions = ns.corporation.getCorporation().divisions;
     for (let i = 0; i < numberOfDivisions; i++) {
         const dummyDivisionName = dummyDivisionNamePrefix + i.toString().padStart(2, "0");
@@ -1479,10 +1587,10 @@ export function createDummyDivisions(ns: NS, numberOfDivisions: number) {
     }
 }
 
-export async function waitForOffer(ns: NS, maxAdditionalCycle: number, expectedOffer: number) {
-    await waitForNumberOfCycles(ns, 10);
+export async function waitForOffer(ns: NS, numberOfInitCycles: number, maxAdditionalCycles: number, expectedOffer: number): Promise<void> {
+    await waitForNumberOfCycles(ns, numberOfInitCycles);
     let offer = ns.corporation.getInvestmentOffer().funds;
-    for (let i = 0; i < maxAdditionalCycle; i++) {
+    for (let i = 0; i < maxAdditionalCycles; i++) {
         await waitForNumberOfCycles(ns, 1);
         console.log(`Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
         if (ns.corporation.getInvestmentOffer().funds < offer * 1.001) {

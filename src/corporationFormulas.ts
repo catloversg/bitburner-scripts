@@ -2,10 +2,10 @@
  * Do NOT use NS functions in this module's functions
  */
 
-import {CorpIndustryData, CorpMaterialName, CorpUpgradeName} from "@ns";
-import {CorpResearchesData} from "/data/CorpResearchesData";
-import {CorpUpgradesData} from "/data/CorpUpgradesData";
-import {Ceres} from "/libs/Ceres";
+import { CorpIndustryData, CorpMaterialName, CorpUpgradeName } from "@ns";
+import { CorpResearchesData } from "/data/CorpResearchesData";
+import { CorpUpgradesData } from "/data/CorpUpgradesData";
+import { Ceres } from "/libs/Ceres";
 
 // Do NOT rename. This definition is copied from NetscriptDefinitions.d.ts
 export enum CityName {
@@ -122,6 +122,7 @@ export interface OfficeSetupJobs {
     Business: number;
     Management: number;
     "Research & Development": number;
+    Intern?: number;
 }
 
 export interface OfficeSetup {

@@ -25,6 +25,7 @@ import {
 } from "/corporationUtils";
 import {generateBlobUrl} from "/scriptUtils";
 import {ScriptFilePath} from "/libs/paths/ScriptFilePath";
+import {NetscriptExtension} from "/libs/NetscriptExtension";
 
 let workerModuleUrl = new CorporationOptimizer().getScriptUrl();
 
@@ -62,7 +63,7 @@ type Workload = (
 ) => Promise<void>;
 
 async function splitWorkload(
-    ns: NS,
+    nsx: NetscriptExtension,
     divisionName: string,
     city: CityName,
     operationsJob: {
@@ -117,7 +118,7 @@ async function splitWorkload(
         );
         current += (step + 1);
     }
-    ns.atExit(() => {
+    nsx.addAtExitCallback(() => {
         workers.forEach(worker => {
             worker.terminate();
         });
@@ -127,7 +128,7 @@ async function splitWorkload(
 }
 
 export async function optimizeOffice(
-    ns: NS,
+    nsx: NetscriptExtension,
     division: Division,
     industryData: CorpIndustryData,
     city: CityName,
@@ -146,16 +147,16 @@ export async function optimizeOffice(
         throw new Error("Do not use useCurrentItemData = true with sample product");
     }
 
-    await validateWorkerModuleUrl(ns);
+    await validateWorkerModuleUrl(nsx.ns);
 
     const logger = new Logger(enableLogging);
     const data: OfficeBenchmarkData[] = [];
-    const office = ns.corporation.getOffice(division.name, city);
+    const office = nsx.ns.corporation.getOffice(division.name, city);
 
     let avgMorale = office.avgMorale;
     let avgEnergy = office.avgEnergy;
-    const corporationUpgradeLevels = getCorporationUpgradeLevels(ns);
-    const divisionResearches = getDivisionResearches(ns, division.name);
+    const corporationUpgradeLevels = getCorporationUpgradeLevels(nsx.ns);
+    const divisionResearches = getDivisionResearches(nsx.ns, division.name);
 
     if (nonRnDEmployees < 4) {
         throw new Error(`Invalid employees' data. maxTotalEmployees: ${nonRnDEmployees}`);
@@ -326,7 +327,7 @@ export async function optimizeOffice(
         engineerMax = employeeJobsRequirement.engineer;
     }
     await splitWorkload(
-        ns,
+        nsx,
         division.name,
         city,
         {
@@ -370,7 +371,7 @@ export async function optimizeOffice(
             newEngineerMax = employeeJobsRequirement.engineer;
         }
         await splitWorkload(
-            ns,
+            nsx,
             division.name,
             city,
             {

@@ -26,10 +26,20 @@ export type NetscriptFlagsSchema = [string, string | number | boolean | string[]
 export type NetscriptFlags = { [key: string]: ScriptArg | string[] };
 
 export class NetscriptExtension {
-    private ns: NS;
+    ns: NS;
+    private atExitCallbacks: (() => void)[] = [];
 
     constructor(nsContext: NS) {
         this.ns = nsContext;
+        this.ns.atExit(() => {
+            for (const callback of this.atExitCallbacks) {
+                callback();
+            }
+        });
+    }
+
+    addAtExitCallback(callback: () => void) {
+        this.atExitCallbacks.push(callback);
     }
 
     scanDFS(

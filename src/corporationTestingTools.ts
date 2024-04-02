@@ -1,20 +1,39 @@
-import {cities} from "/corporationUtils";
-import {CityName, EmployeePosition, MaterialName, UpgradeName} from "/corporationFormulas";
-import {getRecordEntries, PartialRecord} from "/libs/Record";
-import {CorpUpgradesData} from "/data/CorpUpgradesData";
+import { cities } from "/corporationUtils";
+import { CityName, EmployeePosition, MaterialName, ResearchName, UpgradeName } from "/corporationFormulas";
+import { getRecordEntries, PartialRecord } from "/libs/Record";
+import { CorpUpgradesData } from "/data/CorpUpgradesData";
+import { CorpMaterialsData } from "./data/CorpMaterialsData";
+
+type SaveData = string | Uint8Array;
 
 declare global {
     // eslint-disable-next-line no-var
     var Player: {
         money: number;
-        corporation: Corporation
+        corporation: Corporation | null;
     };
     // eslint-disable-next-line no-var
-    var saveObject: {
-        getSaveString: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => string
+    var Engine: {
+        updateGame: (numCycles?: number) => void;
+        load: (saveData: SaveData) => Promise<void>;
+        start: () => void;
+    };
+    // eslint-disable-next-line no-var
+    var SaveObject: {
+        saveObject: {
+            getSaveData: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => Promise<SaveData>;
+        };
+        loadGame: (saveData: SaveData) => Promise<boolean>;
+    };
+    // eslint-disable-next-line no-var
+    var AllServers: {
+        loadAllServers: (saveString: string) => void;
+        saveAllServers: () => string;
     };
     // eslint-disable-next-line no-var
     var corporationCycleHistory: CycleData[];
+    // eslint-disable-next-line no-var
+    var backupCorporationData: Corporation | null;
 }
 
 interface CycleData {
@@ -31,6 +50,10 @@ export interface Office {
     size: number;
     avgEnergy: number;
     avgMorale: number;
+    avgIntelligence: number;
+    avgCharisma: number;
+    avgCreativity: number;
+    avgEfficiency: number;
     numEmployees: number;
     employeeNextJobs: {
         Operations: number,
@@ -40,13 +63,17 @@ export interface Office {
         "Research & Development": number,
         Intern: number,
         Unassigned: number,
-        total: number
+        total: number;
     };
 }
 
 export interface Material {
     name: MaterialName;
     stored: number;
+    demand: number;
+    competition: number;
+    marketPrice: number;
+    averagePrice: number;
 }
 
 export interface Warehouse {
@@ -58,20 +85,21 @@ export interface Warehouse {
 export interface Division {
     name: string;
     researchPoints: number;
+    researched: Set<ResearchName>;
     requiredMaterials: PartialRecord<MaterialName, number>;
     producedMaterials: MaterialName[];
     offices: PartialRecord<CityName, Office>;
     warehouses: PartialRecord<CityName, Warehouse>;
 }
 
-export interface Corporation {
+export interface Corporation extends Record<string, any> {
     funds: number;
     revenue: number;
     expenses: number;
     fundingRound: number;
     storedCycles: number;
     divisions: Map<string, Division>;
-    upgrades: Record<UpgradeName, { level: number, value: number }>;
+    upgrades: Record<UpgradeName, { level: number, value: number; }>;
     valuation: number;
     cycleCount: number;
 }
@@ -102,16 +130,16 @@ export async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
     });
 }
 
-export async function getSaveData(key: string): Promise<string> {
+export async function getSaveData(key: string): Promise<SaveData> {
     return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
             const requestGet = objectStore.get(key);
-            requestGet.onsuccess = () => resolve(requestGet.result as string);
+            requestGet.onsuccess = () => resolve(requestGet.result);
         });
     });
 }
 
-export async function insertSaveData(saveData: string): Promise<void> {
+export async function insertSaveData(saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
             const requestPut = objectStore.put(saveData, new Date().toISOString());
@@ -120,7 +148,7 @@ export async function insertSaveData(saveData: string): Promise<void> {
     });
 }
 
-export async function updateSaveData(key: string, saveData: string): Promise<void> {
+export async function updateSaveData(key: string, saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
         getObjectStore().then(objectStore => {
             const requestPut = objectStore.put(saveData, key);
@@ -146,28 +174,28 @@ export function setUnlimitedBonusTime(): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    Player.corporation.storedCycles = 1e9;
+    Player.corporation!.storedCycles = 1e9;
 }
 
 export function removeBonusTime(): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    Player.corporation.storedCycles = 0;
+    Player.corporation!.storedCycles = 0;
 }
 
 export function setFunds(funds: number): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    Player.corporation.funds = funds;
+    Player.corporation!.funds = funds;
 }
 
 export function setUpgradeLevel(upgradeName: UpgradeName, level: number): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    const corpUpgrades = getRecordEntries(Player.corporation.upgrades);
+    const corpUpgrades = getRecordEntries(Player.corporation!.upgrades);
     for (const [corpUpgradeName, corpUpgradeInfo] of corpUpgrades) {
         if (corpUpgradeName === upgradeName) {
             const upgradeData = CorpUpgradesData[corpUpgradeName];
@@ -176,10 +204,10 @@ export function setUpgradeLevel(upgradeName: UpgradeName, level: number): void {
         }
 
         if (corpUpgradeName === UpgradeName.SMART_STORAGE) {
-            for (const division of Player.corporation.divisions.values()) {
+            for (const division of Player.corporation!.divisions.values()) {
                 const warehouses = Object.values(division.warehouses);
                 for (const warehouse of warehouses) {
-                    warehouse.updateSize(Player.corporation, division);
+                    warehouse.updateSize(Player.corporation!, division);
                 }
             }
         }
@@ -190,7 +218,7 @@ export function setResearchPoints(divisionName: string, researchPoints: number):
     if (!isTestingToolsAvailable()) {
         return;
     }
-    Player.corporation.divisions.get(divisionName)!.researchPoints = researchPoints;
+    Player.corporation!.divisions.get(divisionName)!.researchPoints = researchPoints;
 }
 
 export function setOfficeSetup(divisionName: string, employeeJobs: number[]): void {
@@ -198,7 +226,7 @@ export function setOfficeSetup(divisionName: string, employeeJobs: number[]): vo
         return;
     }
     const size = employeeJobs.reduce((accumulator, current) => accumulator += current, 0);
-    const offices = Object.values(Player.corporation.divisions.get(divisionName)!.offices);
+    const offices = Object.values(Player.corporation!.divisions.get(divisionName)!.offices);
     for (const office of offices) {
         office.size = size;
         office.numEmployees = size;
@@ -216,11 +244,11 @@ export function setWarehouseLevel(divisionName: string, level: number): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    const division = Player.corporation.divisions.get(divisionName)!;
+    const division = Player.corporation!.divisions.get(divisionName)!;
     const warehouses = Object.values(division.warehouses);
     for (const warehouse of warehouses) {
         warehouse.level = level;
-        warehouse.updateSize(Player.corporation, division);
+        warehouse.updateSize(Player.corporation!, division);
     }
 }
 
@@ -228,7 +256,7 @@ export function setBoostMaterials(divisionName: string, boostMaterials: number[]
     if (!isTestingToolsAvailable()) {
         return;
     }
-    const warehouses = Object.values(Player.corporation.divisions.get(divisionName)!.warehouses);
+    const warehouses = Object.values(Player.corporation!.divisions.get(divisionName)!.warehouses);
     for (const warehouse of warehouses) {
         const materials = Object.values(warehouse.materials);
         for (const material of materials) {
@@ -260,7 +288,7 @@ export function clearMaterials(
     if (!isTestingToolsAvailable()) {
         return;
     }
-    const division = Player.corporation.divisions.get(divisionName)!;
+    const division = Player.corporation!.divisions.get(divisionName)!;
     const requiredMaterials = Object.keys(division.requiredMaterials);
     const producedMaterials = division.producedMaterials;
     const warehouses = Object.values(division.warehouses);
@@ -280,7 +308,36 @@ export function setEnergyAndMorale(divisionName: string, energy: number, morale:
         return;
     }
     for (const city of cities) {
-        Player.corporation.divisions.get(divisionName)!.offices[city]!.avgEnergy = energy;
-        Player.corporation.divisions.get(divisionName)!.offices[city]!.avgMorale = morale;
+        Player.corporation!.divisions.get(divisionName)!.offices[city]!.avgEnergy = energy;
+        Player.corporation!.divisions.get(divisionName)!.offices[city]!.avgMorale = morale;
+    }
+}
+
+export function addResearch(divisionName: string, researchName: ResearchName): void {
+    if (!isTestingToolsAvailable()) {
+        return;
+    }
+    Player.corporation!.divisions.get(divisionName)!.researched.add(researchName);
+}
+
+export function resetRNGData() {
+    if (!isTestingToolsAvailable()) {
+        return;
+    }
+    for (const [_, division] of Player.corporation!.divisions) {
+        for (const [_, office] of Object.entries(division.offices)) {
+            office.avgIntelligence = 75;
+            office.avgCharisma = 75;
+            office.avgCreativity = 75;
+            office.avgEfficiency = 75;
+        }
+        for (const [_, warehouse] of Object.entries(division.warehouses)) {
+            for (const [_, material] of Object.entries(warehouse.materials)) {
+                material.demand = CorpMaterialsData[material.name].demandBase;
+                material.competition = CorpMaterialsData[material.name].competitionBase;
+                material.marketPrice = CorpMaterialsData[material.name].baseCost;
+                material.averagePrice = CorpMaterialsData[material.name].baseCost;
+            }
+        }
     }
 }

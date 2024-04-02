@@ -1,10 +1,11 @@
-import {NS} from "@ns";
-import {NetscriptExtension} from "/libs/NetscriptExtension";
-import {DAEMON_SCRIPT_NAME} from "/libs/constants";
-import {parseNumber} from "/libs/utils";
-import {UpgradeName} from "/corporationFormulas";
-import {clearPurchaseOrders, DivisionName, hasDivision} from "/corporationUtils";
+import { NS } from "@ns";
+import { NetscriptExtension } from "/libs/NetscriptExtension";
+import { DAEMON_SCRIPT_NAME } from "/libs/constants";
+import { parseNumber } from "/libs/utils";
+import { UpgradeName } from "/corporationFormulas";
+import { clearPurchaseOrders, DivisionName, hasDivision } from "/corporationUtils";
 import * as testingTools from "/corporationTestingTools";
+import { exposeGameInternalObjects } from "/exploits";
 
 let ns: NS;
 let nsx: NetscriptExtension;
@@ -18,17 +19,22 @@ let runCorpRound = false;
 let runCorpTest = false;
 
 function rerun(ns: NS) {
-    ns.spawn(ns.getScriptName(), {spawnDelay: 100});
+    ns.spawn(ns.getScriptName(), { spawnDelay: 100 });
+}
+
+function removeTestingTool() {
+    let testingToolsDiv = doc.querySelector("#testing-tools");
+    // Remove old tools
+    if (testingToolsDiv) {
+        testingToolsDiv.remove();
+    }
 }
 
 function createTestingTool() {
     // Testing tools
     if (enableTestingTools) {
-        let testingToolsDiv = doc.querySelector("#testing-tools");
-        // Remove old tools
-        if (testingToolsDiv !== null) {
-            testingToolsDiv.remove();
-        }
+        removeTestingTool();
+
         // Create tools
         const root: Element = doc.querySelector("#root")!;
         const testingToolsTemplate = doc.createElement("template");
@@ -107,7 +113,7 @@ function createTestingTool() {
 </div>
         `.trim();
         root.appendChild(testingToolsTemplate.content.firstChild!);
-        testingToolsDiv = doc.querySelector("#testing-tools")!;
+        const testingToolsDiv = doc.querySelector("#testing-tools")!;
         const savaDataSelectElement = doc.getElementById("select-save-data") as HTMLSelectElement;
 
         const reloadSaveDataSelectElement = async () => {
@@ -224,17 +230,23 @@ function createTestingTool() {
             });
         });
         doc.getElementById("btn-import-save-data")!.addEventListener("click", function () {
-            testingTools.getSaveData(savaDataSelectElement.value).then(saveString => {
-                if (!saveString) {
+            testingTools.getSaveData(savaDataSelectElement.value).then(saveData => {
+                if (!saveData) {
                     return;
                 }
-                testingTools.updateSaveData("save", saveString).then(() => {
-                    globalThis.setTimeout(() => globalThis.location.reload(), 1000);
+                testingTools.updateSaveData("save", saveData).then(() => {
+                    ns.killall("home");
+                    const currentAllServers = globalThis.AllServers.saveAllServers();
+                    globalThis.SaveObject.loadGame(saveData);
+                    setTimeout(() => {
+                        globalThis.AllServers.loadAllServers(currentAllServers);
+                        ns.exec("daemon.js", "home", 1, "--maintainCorporation");
+                    }, 1000);
                 });
             });
         });
-        doc.getElementById("btn-export-save-data")!.addEventListener("click", function () {
-            testingTools.insertSaveData(globalThis.saveObject.getSaveString(true, true)).then(() => {
+        doc.getElementById("btn-export-save-data")!.addEventListener("click", async function () {
+            testingTools.insertSaveData(await globalThis.SaveObject.saveObject.getSaveData(true, true)).then(() => {
                 reloadSaveDataSelectElement().then();
             });
         });
@@ -289,20 +301,21 @@ function createTestingTool() {
             testingTools.setBoostMaterials(getDivisionName(), [0, 0, 0, 0]);
         });
         doc.getElementById("btn-clear-input-materials")!.addEventListener("click", function () {
-            testingTools.clearMaterials(getDivisionName(), {input: true, output: false});
+            testingTools.clearMaterials(getDivisionName(), { input: true, output: false });
         });
         doc.getElementById("btn-clear-output-materials")!.addEventListener("click", function () {
-            testingTools.clearMaterials(getDivisionName(), {input: false, output: true});
+            testingTools.clearMaterials(getDivisionName(), { input: false, output: true });
         });
         doc.getElementById("btn-clear-storage")!.addEventListener("click", function () {
             clearPurchaseOrders(ns);
             testingTools.setBoostMaterials(getDivisionName(), [0, 0, 0, 0]);
-            testingTools.clearMaterials(getDivisionName(), {input: true, output: true});
+            testingTools.clearMaterials(getDivisionName(), { input: true, output: true });
         });
     }
 }
 
 export async function main(nsContext: NS): Promise<void> {
+    exposeGameInternalObjects();
     ns = nsContext;
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
@@ -314,9 +327,10 @@ export async function main(nsContext: NS): Promise<void> {
     doc = eval("document");
     const hook0 = doc.getElementById("overview-extra-hook-0")!;
     const hook1 = doc.getElementById("overview-extra-hook-1")!;
-    ns.atExit(() => {
+    nsx.addAtExitCallback(() => {
         hook0.innerText = "";
         hook1.innerText = "";
+        removeTestingTool();
     });
 
     const headers = [];

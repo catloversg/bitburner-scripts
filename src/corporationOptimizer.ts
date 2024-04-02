@@ -1,6 +1,6 @@
-import {CorpIndustryData, Division, Material, Product} from "@ns";
+import { CorpIndustryData, Division, Material, Product } from "@ns";
 import * as comlink from "/libs/comlink";
-import {getOptimalBoostMaterialQuantities, getProductMarkup, isProduct, Logger} from "/corporationUtils";
+import { getOptimalBoostMaterialQuantities, getProductMarkup, isProduct, Logger } from "/corporationUtils";
 import {
     CityName,
     CorporationUpgradeLevels,
@@ -25,10 +25,10 @@ import {
     getWarehouseSize,
     UpgradeName
 } from "/corporationFormulas";
-import {CorpMaterialsData} from "/data/CorpMaterialsData";
-import {CorpUpgradesData} from "/data/CorpUpgradesData";
-import {PriorityQueue} from "/libs/priorityQueue";
-import {scaleValueToRange} from "/libs/utils";
+import { CorpMaterialsData } from "/data/CorpMaterialsData";
+import { CorpUpgradesData } from "/data/CorpUpgradesData";
+import { PriorityQueue } from "/libs/priorityQueue";
+import { scaleValueToRange } from "/libs/utils";
 
 export enum BenchmarkType {
     STORAGE_FACTORY,
@@ -314,7 +314,7 @@ export function getComparator(benchmarkType: BenchmarkType, sortType?: string, c
                 }
                 if (sortType === "profit_progress") {
                     return (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfA
-                            - customData.balancingModifierForProfitProgress.progress * normalizedProgressOfA)
+                        - customData.balancingModifierForProfitProgress.progress * normalizedProgressOfA)
                         - (customData.balancingModifierForProfitProgress.profit * normalizedProfitOfB
                             - customData.balancingModifierForProfitProgress.progress * normalizedProgressOfB);
                 }
@@ -346,11 +346,11 @@ export async function calculateOfficeBenchmarkData(
             avgCharisma: number;
             avgCreativity: number;
             avgEfficiency: number;
-            totalExperience: number
+            totalExperience: number;
         };
         corporationUpgradeLevels: CorporationUpgradeLevels;
         divisionResearches: DivisionResearches;
-        step?: number
+        step?: number;
     },
     operations: number,
     engineer: number,
@@ -414,9 +414,9 @@ export async function calculateOfficeBenchmarkData(
             + employeesProduction.managementProduction;
         const managementFactor = 1 + employeesProduction.managementProduction / (1.2 * totalProductionForProductDev);
         productDevelopmentProgress = 0.01 * (
-                Math.pow(employeesProduction.engineerProduction, 0.34)
-                + Math.pow(employeesProduction.operationsProduction, 0.2)
-            )
+            Math.pow(employeesProduction.engineerProduction, 0.34)
+            + Math.pow(employeesProduction.operationsProduction, 0.2)
+        )
             * managementFactor;
 
         if (!useCurrentItemData) {

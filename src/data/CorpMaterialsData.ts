@@ -50,8 +50,8 @@ export const CorpMaterialsData: {
         "size": 0.04,
         "demandBase": 75,
         "demandRange": [
-            90,
-            60
+            60,
+            90
         ],
         "competitionBase": 80,
         "competitionRange": [

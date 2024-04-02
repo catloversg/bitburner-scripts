@@ -1,4 +1,4 @@
-import {AutocompleteData, CorpIndustryData, Material, NS, Product} from "@ns";
+import { AutocompleteData, CorpIndustryData, Material, NS, Product } from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlags,
@@ -10,7 +10,6 @@ import {
     CorpState,
     DivisionResearches,
     EmployeePosition,
-    getAdVertCost,
     getMaxAffordableAdVertLevel,
     getMaxAffordableOfficeSize,
     getMaxAffordableUpgradeLevel,
@@ -31,6 +30,7 @@ import {
     buyUnlock,
     buyUpgrade,
     cities,
+    clearPurchaseOrders,
     createDivision,
     createDummyDivisions,
     developNewProduct,
@@ -53,10 +53,11 @@ import {
     upgradeWarehouse,
     waitForNumberOfCycles,
     waitForOffer,
-    waitUntilAfterStateHappens,
-    waitUntilHavingEnoughResearchPoints
+    waitForNextTimeStateHappens,
+    waitUntilHavingEnoughResearchPoints,
+    generateOfficeSetupsForEarlyRounds
 } from "/corporationUtils";
-import {optimizeOffice} from "/corporationOptimizerTools";
+import { optimizeOffice } from "/corporationOptimizerTools";
 import {
     BalancingModifierForProfitProgress,
     CorporationOptimizer,
@@ -71,8 +72,8 @@ import {
     precalculatedEmployeeRatioForSupportDivisions
 } from "/corporationOptimizer";
 import * as testingTools from "/corporationTestingTools";
-import {corporationEventLogger} from "/corporationEventLogger";
-import {exposePlayerObject} from "/exploits";
+import { corporationEventLogger } from "/corporationEventLogger";
+import { exposeGameInternalObjects } from "/exploits";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -80,24 +81,128 @@ export function autocomplete(data: AutocompleteData, flags: string[]): string[] 
 }
 
 interface Round1Option {
+    agricultureOfficeSize: number;
+    waitForAgricultureRP: number;
     boostMaterialsRatio: number;
 }
 
 const PrecalculatedRound1Option = {
+    // 1498 - 61.344e9 - 504.8e9 - 443.456e9 - 4.89m/s - 17.604b/h
     OPTION1: <Round1Option>{
-        boostMaterialsRatio: 0.87
+        agricultureOfficeSize: 3,
+        waitForAgricultureRP: 55,
+        boostMaterialsRatio: 0.89
+        // boostMaterialsRatio: 0.88 // Smart Supply - Advert 1
+    },
+    // 1649 - 51.46e9 - 557.1e9 - 505.64e9 - 5.381e6/s - 19.371/h
+    OPTION2: <Round1Option>{
+        agricultureOfficeSize: 4,
+        waitForAgricultureRP: 55,
+        boostMaterialsRatio: 0.86
+        // boostMaterialsRatio: 0.84 // Smart Supply
+    },
+    // 1588 - 42.704e9 - 536.8e9 - 494.096e9 - 5.176m/s - 18.633b/h
+    OPTION3: <Round1Option>{
+        agricultureOfficeSize: 5,
+        waitForAgricultureRP: 55,
+        boostMaterialsRatio: 0.84
+    },
+    // 1441 - 34.13e9 - 487.5e9 - 453.37e9 - 4.694m/s - 16.898b/h
+    OPTION4: <Round1Option>{
+        agricultureOfficeSize: 6,
+        waitForAgricultureRP: 55,
+        boostMaterialsRatio: 0.815
     },
 } as const;
 
 interface Round2Option {
+    agricultureOfficeSize: number;
+    increaseBusiness: boolean;
     waitForAgricultureRP: number;
     waitForChemicalRP: number;
+    agricultureBoostMaterialsRatio: number;
 }
 
 const PrecalculatedRound2Option = {
+    // 15.266e12 17282 804.175
     OPTION1: <Round2Option>{
-        waitForAgricultureRP: 460,
+        agricultureOfficeSize: 8, // 3-1-1-3
+        increaseBusiness: false,
+        waitForAgricultureRP: 903,
+        waitForChemicalRP: 516,
+        agricultureBoostMaterialsRatio: 0.75
+    },
+    // 14.57e12 16485 815.188
+    OPTION2: <Round2Option>{
+        agricultureOfficeSize: 8,
+        increaseBusiness: true,
+        waitForAgricultureRP: 703,
+        waitForChemicalRP: 393,
+        agricultureBoostMaterialsRatio: 0.76
+    },
+    // 14.474e12
+    OPTION3: <Round2Option>{
+        agricultureOfficeSize: 8,
+        increaseBusiness: true,
+        waitForAgricultureRP: 653,
+        waitForChemicalRP: 362,
+        agricultureBoostMaterialsRatio: 0.755
+    },
+    // 13.994e12
+    OPTION4: <Round2Option>{
+        agricultureOfficeSize: 8,
+        increaseBusiness: true,
+        waitForAgricultureRP: 602,
+        waitForChemicalRP: 331,
+        agricultureBoostMaterialsRatio: 0.74
+    },
+    // 13.742e12
+    OPTION5: <Round2Option>{
+        agricultureOfficeSize: 8, // 2-1-3-2
+        increaseBusiness: true,
+        waitForAgricultureRP: 602,
+        waitForChemicalRP: 331,
+        agricultureBoostMaterialsRatio: 0.77
+    },
+    // 13.425e12
+    OPTION6: <Round2Option>{
+        agricultureOfficeSize: 8,
+        increaseBusiness: true,
+        waitForAgricultureRP: 551,
         waitForChemicalRP: 300,
+        agricultureBoostMaterialsRatio: 0.71
+    },
+    // 13.7e12
+    OPTION7: <Round2Option>{
+        agricultureOfficeSize: 8, // 2-1-3-2
+        increaseBusiness: true,
+        waitForAgricultureRP: 551,
+        waitForChemicalRP: 300,
+        agricultureBoostMaterialsRatio: 0.77
+    },
+    // 13.6e12
+    OPTION8: <Round2Option>{
+        agricultureOfficeSize: 8, // 2-1-3-2
+        increaseBusiness: true,
+        waitForAgricultureRP: 500,
+        waitForChemicalRP: 269,
+        agricultureBoostMaterialsRatio: 0.77
+    },
+    // 13e12
+    OPTION9: <Round2Option>{
+        agricultureOfficeSize: 8, // 2-1-3-2
+        increaseBusiness: true,
+        waitForAgricultureRP: 450,
+        waitForChemicalRP: 238,
+        agricultureBoostMaterialsRatio: 0.73
+    },
+    // 10.884e12
+    OPTION10: <Round2Option>{
+        agricultureOfficeSize: 8, // 2-1-3-2
+        increaseBusiness: true,
+        waitForAgricultureRP: 302,
+        waitForChemicalRP: 148,
+        agricultureBoostMaterialsRatio: 0.61
     }
 } as const;
 
@@ -176,14 +281,24 @@ function init(nsContext: NS): void {
         .filter(cityName => cityName !== mainProductDevelopmentCity);
 }
 
-async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1): Promise<void> {
+async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION2): Promise<void> {
     ns.print(`Use: ${JSON.stringify(option)}`);
 
     // Create Agriculture division
-    await createDivision(ns, DivisionName.AGRICULTURE, 3, 1);
+    await createDivision(ns, DivisionName.AGRICULTURE, option.agricultureOfficeSize, 1);
+    for (const city of cities) {
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.PLANTS, "MAX", "MP");
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.FOOD, "MAX", "MP");
+    }
 
-    const targetAdvertLevel = 2;
-    const advertCost = getAdVertCost(ns.corporation.getHireAdVertCount(DivisionName.AGRICULTURE), targetAdvertLevel);
+    if (enableTestingTools && config.auto === false) {
+        testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
+        testingTools.setResearchPoints(DivisionName.AGRICULTURE, option.waitForAgricultureRP);
+    }
+
+    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
+
+    buyAdvert(ns, DivisionName.AGRICULTURE, 2);
 
     const dataArray = new CorporationOptimizer().optimizeStorageAndFactory(
         agricultureIndustryData,
@@ -192,7 +307,7 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
         ns.corporation.getWarehouse(DivisionName.AGRICULTURE, CityName.Sector12).level,
         ns.corporation.getUpgradeLevel(UpgradeName.SMART_FACTORIES),
         getDivisionResearches(ns, DivisionName.AGRICULTURE),
-        ns.corporation.getCorporation().funds - advertCost,
+        ns.corporation.getCorporation().funds,
         false
     );
     if (dataArray.length === 0) {
@@ -202,27 +317,26 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
 
     buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
     buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
-    buyAdvert(ns, DivisionName.AGRICULTURE, targetAdvertLevel);
-
     for (const city of cities) {
         upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
-        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.PLANTS, "MAX", "MP");
-        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.FOOD, "MAX", "MP");
     }
 
-    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
+    await waitUntilHavingEnoughResearchPoints(
+        ns,
+        [
+            {
+                divisionName: DivisionName.AGRICULTURE,
+                researchPoint: option.waitForAgricultureRP
+            }
+        ]
+    );
 
     assignJobs(
         ns,
         DivisionName.AGRICULTURE,
-        generateOfficeSetups(
-            cities,
-            3,
-            [
-                {name: EmployeePosition.OPERATIONS, count: 1},
-                {name: EmployeePosition.ENGINEER, count: 1},
-                {name: EmployeePosition.BUSINESS, count: 1}
-            ]
+        generateOfficeSetupsForEarlyRounds(
+            option.agricultureOfficeSize,
+            false
         )
     );
 
@@ -240,16 +354,16 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
         generateMaterialsOrders(
             cities,
             [
-                {name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterials[0]},
-                {name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterials[1]},
-                {name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterials[2]},
-                {name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterials[3]}
+                { name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterials[0] },
+                { name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterials[1] },
+                { name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterials[2] },
+                { name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterials[3] }
             ]
         )
     );
 
     if (config.auto === true) {
-        await waitForOffer(ns, 5, 490e9);
+        await waitForOffer(ns, 10, 10, 490e9);
         ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
@@ -257,12 +371,12 @@ async function round1(option: Round1Option = PrecalculatedRound1Option.OPTION1):
     }
 }
 
-async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1): Promise<void> {
+async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION2): Promise<void> {
     ns.print(`Use: ${JSON.stringify(option)}`);
 
     if (enableTestingTools && config.auto === false) {
         resetStatistics();
-        testingTools.setFunds(431e9);
+        testingTools.setFunds(490e9);
     }
 
     buyUnlock(ns, UnlockName.EXPORT);
@@ -274,9 +388,9 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         DivisionName.AGRICULTURE,
         generateOfficeSetups(
             cities,
-            6,
+            option.agricultureOfficeSize,
             [
-                {name: EmployeePosition.RESEARCH_DEVELOPMENT, count: 6}
+                { name: EmployeePosition.RESEARCH_DEVELOPMENT, count: option.agricultureOfficeSize }
             ]
         )
     );
@@ -295,6 +409,17 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         // Sell Chemicals
         ns.corporation.sellMaterial(DivisionName.CHEMICAL, city, MaterialName.CHEMICALS, "MAX", "MP");
     }
+
+    testingTools.setResearchPoints(DivisionName.AGRICULTURE, 55);
+    if (enableTestingTools && config.auto === false) {
+        testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
+        testingTools.setEnergyAndMorale(DivisionName.CHEMICAL, 100, 100);
+        testingTools.setResearchPoints(DivisionName.AGRICULTURE, option.waitForAgricultureRP);
+        testingTools.setResearchPoints(DivisionName.CHEMICAL, option.waitForChemicalRP);
+    }
+
+    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
+    await buyTeaAndThrowParty(ns, DivisionName.CHEMICAL);
 
     buyAdvert(ns, DivisionName.AGRICULTURE, 8);
 
@@ -319,13 +444,6 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
     }
 
-    if (enableTestingTools && config.auto === false) {
-        testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
-        testingTools.setEnergyAndMorale(DivisionName.CHEMICAL, 100, 100);
-        testingTools.setResearchPoints(DivisionName.AGRICULTURE, option.waitForAgricultureRP);
-        testingTools.setResearchPoints(DivisionName.CHEMICAL, option.waitForChemicalRP);
-    }
-
     await waitUntilHavingEnoughResearchPoints(
         ns,
         [
@@ -340,9 +458,6 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         ]
     );
 
-    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
-    await buyTeaAndThrowParty(ns, DivisionName.CHEMICAL);
-
     buyAdvert(
         ns,
         DivisionName.AGRICULTURE,
@@ -355,30 +470,15 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
     assignJobs(
         ns,
         DivisionName.AGRICULTURE,
-        generateOfficeSetups(
-            cities,
-            6,
-            [
-                {name: EmployeePosition.OPERATIONS, count: 2},
-                {name: EmployeePosition.ENGINEER, count: 1},
-                {name: EmployeePosition.BUSINESS, count: 1},
-                {name: EmployeePosition.MANAGEMENT, count: 2},
-            ]
+        generateOfficeSetupsForEarlyRounds(
+            option.agricultureOfficeSize,
+            option.increaseBusiness
         )
     );
     assignJobs(
         ns,
         DivisionName.CHEMICAL,
-        generateOfficeSetups(
-            cities,
-            3,
-            [
-                {name: EmployeePosition.OPERATIONS, count: 1},
-                {name: EmployeePosition.ENGINEER, count: 1},
-                {name: EmployeePosition.BUSINESS, count: 1},
-                {name: EmployeePosition.MANAGEMENT, count: 0},
-            ]
-        )
+        generateOfficeSetupsForEarlyRounds(3)
     );
 
     const optimalAmountOfBoostMaterialsForAgriculture = await findOptimalAmountOfBoostMaterials(
@@ -387,7 +487,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
         agricultureIndustryData,
         CityName.Sector12,
         true,
-        0.8
+        option.agricultureBoostMaterialsRatio
     );
     const optimalAmountOfBoostMaterialsForChemical = await findOptimalAmountOfBoostMaterials(
         ns,
@@ -404,10 +504,10 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
             generateMaterialsOrders(
                 cities,
                 [
-                    {name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterialsForAgriculture[0]},
-                    {name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterialsForAgriculture[1]},
-                    {name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterialsForAgriculture[2]},
-                    {name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterialsForAgriculture[3]},
+                    { name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterialsForAgriculture[0] },
+                    { name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterialsForAgriculture[1] },
+                    { name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterialsForAgriculture[2] },
+                    { name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterialsForAgriculture[3] },
                 ]
             )
         ),
@@ -417,17 +517,17 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
             generateMaterialsOrders(
                 cities,
                 [
-                    {name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterialsForChemical[0]},
-                    {name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterialsForChemical[1]},
-                    {name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterialsForChemical[2]},
-                    {name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterialsForChemical[3]},
+                    { name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterialsForChemical[0] },
+                    { name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterialsForChemical[1] },
+                    { name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterialsForChemical[2] },
+                    { name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterialsForChemical[3] },
                 ]
             )
         )
     ]);
 
     if (config.auto === true) {
-        await waitForOffer(ns, 10, 11e12);
+        await waitForOffer(ns, 15, 10, 11e12);
         ns.print(`Round 2: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
@@ -437,7 +537,7 @@ async function round2(option: Round2Option = PrecalculatedRound2Option.OPTION1):
 
 async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1): Promise<void> {
     if (hasDivision(ns, DivisionName.TOBACCO)) {
-        ns.spawn(ns.getScriptName(), {spawnDelay: 500}, "--improveAllDivisions");
+        ns.spawn(ns.getScriptName(), { spawnDelay: 500 }, "--improveAllDivisions");
         return;
     }
 
@@ -524,16 +624,16 @@ async function round3(option: Round3Option = PrecalculatedRound3Option.OPTION1):
         buyBoostMaterials(ns, tobaccoDivision),
     ]);
 
-    ns.spawn(ns.getScriptName(), {spawnDelay: 500}, "--improveAllDivisions");
+    ns.spawn(ns.getScriptName(), { spawnDelay: 500 }, "--improveAllDivisions");
 }
 
 async function improveAllDivisions(): Promise<void> {
     let cycleCount = corporationEventLogger.cycle;
     // This is used for calling improveProductDivision with skipUpgradingOffice = true
-    const pendingImprovingProductDivisions1 = new Set<string>();
+    const pendingImprovingProductDivisions1 = new Map<string, number>();
     // This is used for manually calling improveProductDivisionOffices
-    const pendingImprovingProductDivisions2 = new Set<string>();
-    const pendingImprovingSupportDivisions = new Set<string>();
+    const pendingImprovingProductDivisions2 = new Map<string, number>();
+    const pendingImprovingSupportDivisions = new Map<string, number>();
     const pendingBuyingBoostMaterialsDivisions = new Set<string>();
     const buyBoostMaterialsIfNeeded = (divisionName: string) => {
         if (!pendingBuyingBoostMaterialsDivisions.has(divisionName)) {
@@ -554,6 +654,18 @@ async function improveAllDivisions(): Promise<void> {
         false
     );
     buyBoostMaterialsIfNeeded(DivisionName.TOBACCO);
+
+    let reservedFunds = 0;
+    const increaseReservedFunds = (amount: number) => {
+        console.log(`Increase reservedFunds by ${ns.formatNumber(amount)}`);
+        reservedFunds += amount;
+        console.log(`New reservedFunds: ${ns.formatNumber(reservedFunds)}`);
+    };
+    const decreaseReservedFunds = (amount: number) => {
+        console.log(`Decrease reservedFunds by ${ns.formatNumber(amount)}`);
+        reservedFunds -= amount;
+        console.log(`New reservedFunds: ${ns.formatNumber(reservedFunds)}`);
+    };
 
     // We use preparingToAcceptOffer to prevent optimizing office right before we switch all offices to "profit" setup.
     // This eliminates a potential race condition.
@@ -583,14 +695,17 @@ async function improveAllDivisions(): Promise<void> {
             // Prioritize Advert
             if (profit >= thresholdOfFocusingOnAdvert) {
                 const currentAdvertLevel = ns.corporation.getHireAdVertCount(DivisionName.TOBACCO);
-                const maxAdvertLevel = getMaxAffordableAdVertLevel(currentAdvertLevel, ns.corporation.getCorporation().funds * 0.6);
+                const maxAdvertLevel = getMaxAffordableAdVertLevel(
+                    currentAdvertLevel,
+                    (ns.corporation.getCorporation().funds - reservedFunds) * 0.6
+                );
                 if (maxAdvertLevel > currentAdvertLevel) {
                     buyAdvert(ns, DivisionName.TOBACCO, maxAdvertLevel);
                 }
             }
         }
 
-        const totalFunds = ns.corporation.getCorporation().funds;
+        const totalFunds = ns.corporation.getCorporation().funds - reservedFunds;
         let availableFunds = totalFunds;
 
         // In round 3 and 4, we only develop up to maxNumberOfProducts
@@ -625,14 +740,16 @@ async function improveAllDivisions(): Promise<void> {
                     preparingToAcceptOffer = true;
                 }
                 if (allProductsAreFinished) {
+                    const productDevelopmentBudget = totalFunds * 0.01;
                     const newProductName = developNewProduct(
                         ns,
                         DivisionName.TOBACCO,
                         mainProductDevelopmentCity,
-                        totalFunds * 0.01
+                        productDevelopmentBudget
                     );
                     if (newProductName) {
                         corporationEventLogger.generateNewProductEvent(ns, DivisionName.TOBACCO);
+                        availableFunds -= productDevelopmentBudget;
                     }
 
                     // Wait until newest product's effectiveRating is not 0
@@ -655,7 +772,7 @@ async function improveAllDivisions(): Promise<void> {
                         expectedOffer = 1e20;
                     }
                     const currentCycle = corporationEventLogger.cycle;
-                    await waitForOffer(ns, 5, expectedOffer);
+                    await waitForOffer(ns, 10, 5, expectedOffer);
                     cycleCount += (corporationEventLogger.cycle - currentCycle);
                     console.log(
                         `Cycle: ${cycleCount}. `
@@ -707,8 +824,13 @@ async function improveAllDivisions(): Promise<void> {
             // Skip upgrading office in the following function call. We need to buy corporation's upgrades ASAP, so we
             // will upgrade offices in a separate call later.
             if (!pendingImprovingProductDivisions1.has(DivisionName.TOBACCO)) {
-                pendingImprovingProductDivisions1.add(DivisionName.TOBACCO);
-                console.log(`Upgrade ${DivisionName.TOBACCO}-1, budget: ${ns.formatNumber(budgetForTobaccoDivision)}`);
+                const nonOfficesBudget = budgetForTobaccoDivision * (1 - budgetRatioForProductDivision.office);
+                increaseReservedFunds(nonOfficesBudget);
+                pendingImprovingProductDivisions1.set(
+                    DivisionName.TOBACCO,
+                    nonOfficesBudget
+                );
+                console.log(`Upgrade ${DivisionName.TOBACCO}-1, budget: ${ns.formatNumber(nonOfficesBudget)}`);
                 console.time(DivisionName.TOBACCO + "-1");
                 improveProductDivision(
                     DivisionName.TOBACCO,
@@ -720,6 +842,7 @@ async function improveAllDivisions(): Promise<void> {
                     console.error(`Error occurred when upgrading ${DivisionName.TOBACCO}`, reason);
                 }).finally(() => {
                     console.timeEnd(DivisionName.TOBACCO + "-1");
+                    decreaseReservedFunds(pendingImprovingProductDivisions1.get(DivisionName.TOBACCO) ?? 0);
                     pendingImprovingProductDivisions1.delete(DivisionName.TOBACCO);
                     buyBoostMaterialsIfNeeded(DivisionName.TOBACCO);
                 });
@@ -728,10 +851,11 @@ async function improveAllDivisions(): Promise<void> {
             // Upgrade offices of product division
             if (!pendingImprovingProductDivisions2.has(DivisionName.TOBACCO)
                 && !preparingToAcceptOffer) {
-                pendingImprovingProductDivisions2.add(DivisionName.TOBACCO);
-                console.log(`Upgrade ${DivisionName.TOBACCO}-2, budget: ${ns.formatNumber(budgetForTobaccoDivision)}`);
-                console.time(DivisionName.TOBACCO + "-2");
                 const officesBudget = budgetForTobaccoDivision * budgetRatioForProductDivision.office;
+                increaseReservedFunds(officesBudget);
+                pendingImprovingProductDivisions2.set(DivisionName.TOBACCO, officesBudget);
+                console.log(`Upgrade ${DivisionName.TOBACCO}-2, budget: ${ns.formatNumber(officesBudget)}`);
+                console.time(DivisionName.TOBACCO + "-2");
                 improveProductDivisionOffices(
                     DivisionName.TOBACCO,
                     tobaccoIndustryData,
@@ -742,6 +866,7 @@ async function improveAllDivisions(): Promise<void> {
                     console.error(`Error occurred when upgrading ${DivisionName.TOBACCO}`, reason);
                 }).finally(() => {
                     console.timeEnd(DivisionName.TOBACCO + "-2");
+                    decreaseReservedFunds(pendingImprovingProductDivisions2.get(DivisionName.TOBACCO) ?? 0);
                     pendingImprovingProductDivisions2.delete(DivisionName.TOBACCO);
                 });
             }
@@ -755,7 +880,8 @@ async function improveAllDivisions(): Promise<void> {
             && (cycleCount % 10 === 0 || needToUpgradeDivision(DivisionName.AGRICULTURE, budgetForAgricultureDivision))
             && !pendingImprovingSupportDivisions.has(DivisionName.AGRICULTURE)) {
             availableFunds -= budgetForAgricultureDivision;
-            pendingImprovingSupportDivisions.add(DivisionName.AGRICULTURE);
+            increaseReservedFunds(budgetForAgricultureDivision);
+            pendingImprovingSupportDivisions.set(DivisionName.AGRICULTURE, budgetForAgricultureDivision);
             console.log(`Upgrade ${DivisionName.AGRICULTURE}, budget: ${ns.formatNumber(budgetForAgricultureDivision)}`);
             console.time(DivisionName.AGRICULTURE);
             improveSupportDivision(
@@ -768,6 +894,7 @@ async function improveAllDivisions(): Promise<void> {
                 console.error(`Error occurred when upgrading ${DivisionName.AGRICULTURE}`, reason);
             }).finally(() => {
                 console.timeEnd(DivisionName.AGRICULTURE);
+                decreaseReservedFunds(pendingImprovingSupportDivisions.get(DivisionName.AGRICULTURE) ?? 0);
                 pendingImprovingSupportDivisions.delete(DivisionName.AGRICULTURE);
                 buyBoostMaterialsIfNeeded(DivisionName.AGRICULTURE);
             });
@@ -780,7 +907,8 @@ async function improveAllDivisions(): Promise<void> {
             && (cycleCount % 15 === 0 || needToUpgradeDivision(DivisionName.CHEMICAL, budgetForChemicalDivision))
             && !pendingImprovingSupportDivisions.has(DivisionName.CHEMICAL)) {
             availableFunds -= budgetForChemicalDivision;
-            pendingImprovingSupportDivisions.add(DivisionName.CHEMICAL);
+            increaseReservedFunds(budgetForChemicalDivision);
+            pendingImprovingSupportDivisions.set(DivisionName.CHEMICAL, budgetForChemicalDivision);
             console.log(`Upgrade ${DivisionName.CHEMICAL}, budget: ${ns.formatNumber(budgetForChemicalDivision)}`);
             console.time(DivisionName.CHEMICAL);
             improveSupportDivision(
@@ -793,6 +921,7 @@ async function improveAllDivisions(): Promise<void> {
                 console.error(`Error occurred when upgrading ${DivisionName.CHEMICAL}`, reason);
             }).finally(() => {
                 console.timeEnd(DivisionName.CHEMICAL);
+                decreaseReservedFunds(pendingImprovingSupportDivisions.get(DivisionName.CHEMICAL) ?? 0);
                 pendingImprovingSupportDivisions.delete(DivisionName.CHEMICAL);
                 buyBoostMaterialsIfNeeded(DivisionName.CHEMICAL);
             });
@@ -806,7 +935,7 @@ async function improveAllDivisions(): Promise<void> {
             console.debug(`plants ratio: ${producedPlants / consumedPlants}`);
         }
 
-        await waitUntilAfterStateHappens(ns, CorpState.START);
+        await waitForNextTimeStateHappens(ns, CorpState.START);
     }
 }
 
@@ -865,7 +994,7 @@ async function switchAllOfficesToProfitSetup(industryData: CorpIndustryData, new
         officeSetup.jobs.Management = officeSetup.size - (officeSetup.jobs.Operations + officeSetup.jobs.Engineer + officeSetup.jobs.Business);
     } else {
         const dataArray = await optimizeOffice(
-            ns,
+            nsx,
             ns.corporation.getDivision(DivisionName.TOBACCO),
             industryData,
             mainProductDevelopmentCity,
@@ -1053,7 +1182,7 @@ async function improveSupportDivision(
         const division = ns.corporation.getDivision(divisionName);
         const industryData = ns.corporation.getIndustryData(division.type);
         const dataArray = await optimizeOffice(
-            ns,
+            nsx,
             division,
             industryData,
             city,
@@ -1274,7 +1403,7 @@ async function improveProductDivisionMainOffice(
             logger.log(`Use product: ${JSON.stringify(item)}`);
         }
         const dataArray = await optimizeOffice(
-            ns,
+            nsx,
             division,
             industryData,
             mainProductDevelopmentCity,
@@ -1527,7 +1656,7 @@ async function improveProductDivision(
 }
 
 function resetStatistics() {
-    globalThis.Player.corporation.cycleCount = 0;
+    globalThis.Player.corporation!.cycleCount = 0;
     globalThis.corporationCycleHistory = [];
     corporationEventLogger.cycle = 0;
     corporationEventLogger.clearEventData();
@@ -1560,12 +1689,18 @@ export async function main(nsContext: NS): Promise<void> {
         }
     }
 
+    // Clear purchase order of boost materials when script exits
+    nsx.addAtExitCallback(() => {
+        clearPurchaseOrders(ns, false);
+    });
+
     agricultureIndustryData = ns.corporation.getIndustryData(IndustryType.AGRICULTURE);
     chemicalIndustryData = ns.corporation.getIndustryData(IndustryType.CHEMICAL);
     tobaccoIndustryData = ns.corporation.getIndustryData(IndustryType.TOBACCO);
 
     if (config.benchmark === true) {
-        exposePlayerObject();
+        exposeGameInternalObjects();
+        testingTools.resetRNGData();
         enableTestingTools = true;
     }
 

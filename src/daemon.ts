@@ -1,4 +1,4 @@
-import {AutocompleteData, NS} from "@ns";
+import { AutocompleteData, NS } from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlags,
@@ -70,7 +70,7 @@ export async function main(nsContext: NS): Promise<void> {
         clearPurchaseOrders(ns);
 
         // Clear purchase orders when script exits
-        ns.atExit(() => {
+        nsx.addAtExitCallback(() => {
             clearPurchaseOrders(ns);
         });
         let smartSupplyHasBeenEnabledEverywhere = false;
