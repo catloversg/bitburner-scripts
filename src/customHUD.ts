@@ -160,10 +160,6 @@ function createTestingTool() {
                         throw new Error("Error importing file");
                     }
                     const result = target.result;
-                    if (typeof result !== "string") {
-                        throw new Error("FileReader event was not type string");
-                    }
-
                     const indexedDbRequest: IDBOpenDBRequest = window.indexedDB.open("bitburnerSave", 1);
                     indexedDbRequest.onsuccess = function (this: IDBRequest<IDBDatabase>) {
                         const db = this.result;
@@ -171,13 +167,20 @@ function createTestingTool() {
                             throw new Error("Cannot access database");
                         }
                         const objectStore = db.transaction(["savestring"], "readwrite").objectStore("savestring");
-                        const request = objectStore.put(result, "save");
+                        const request = objectStore.put(
+                            (result instanceof ArrayBuffer) ? new Uint8Array(result) : result,
+                            "save"
+                        );
                         request.onsuccess = () => {
                             globalThis.setTimeout(() => globalThis.location.reload(), 1000);
                         };
                     };
                 };
-                reader.readAsText(file);
+                if (file.name.endsWith(".gz")) {
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.readAsText(file);
+                }
             };
             fileInput.click();
         });
