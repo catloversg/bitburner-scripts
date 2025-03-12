@@ -1,34 +1,30 @@
+import type { FactionName, HP, Multipliers, Skills } from "@ns";
 import { cities } from "/corporationUtils";
 import { CityName, EmployeePosition, MaterialName, ResearchName, UpgradeName } from "/corporationFormulas";
 import { getRecordEntries, PartialRecord } from "/libs/Record";
 import { CorpUpgradesData } from "/data/CorpUpgradesData";
 import { CorpMaterialsData } from "./data/CorpMaterialsData";
-
-type SaveData = string | Uint8Array;
+import type { SaveData } from "/exploits";
 
 declare global {
     // eslint-disable-next-line no-var
     var Player: {
-        money: number;
+        hp: HP;
+        skills: Skills;
+        exp: typeof Player.skills;
+        mults: Multipliers;
         corporation: Corporation | null;
-    };
-    // eslint-disable-next-line no-var
-    var Engine: {
-        updateGame: (numCycles?: number) => void;
-        load: (saveData: SaveData) => Promise<void>;
-        start: () => void;
-    };
-    // eslint-disable-next-line no-var
-    var SaveObject: {
-        saveObject: {
-            getSaveData: (forceExcludeRunningScripts: boolean, forceExcludeScripts: boolean) => Promise<SaveData>;
-        };
-        loadGame: (saveData: SaveData) => Promise<boolean>;
-    };
-    // eslint-disable-next-line no-var
-    var AllServers: {
-        loadAllServers: (saveString: string) => void;
-        saveAllServers: () => string;
+        factions: FactionName[];
+        karma: number;
+        money: number;
+        sleeves: {
+            memory: number;
+            shock: number;
+            storedCycles: number;
+            sync: number;
+        }[];
+        sourceFiles: Map<number, number>;
+        gainHackingExp: (exp: number) => void;
     };
     // eslint-disable-next-line no-var
     var corporationCycleHistory: CycleData[];
@@ -56,13 +52,13 @@ export interface Office {
     avgEfficiency: number;
     numEmployees: number;
     employeeNextJobs: {
-        Operations: number,
-        Engineer: number,
-        Business: number,
-        Management: number,
-        "Research & Development": number,
-        Intern: number,
-        Unassigned: number,
+        Operations: number;
+        Engineer: number;
+        Business: number;
+        Management: number;
+        "Research & Development": number;
+        Intern: number;
+        Unassigned: number;
         total: number;
     };
 }
@@ -99,7 +95,7 @@ export interface Corporation extends Record<string, any> {
     fundingRound: number;
     storedCycles: number;
     divisions: Map<string, Division>;
-    upgrades: Record<UpgradeName, { level: number, value: number; }>;
+    upgrades: Record<UpgradeName, { level: number; value: number }>;
     valuation: number;
     cycleCount: number;
 }
@@ -123,7 +119,7 @@ export async function getObjectStore(): Promise<IDBObjectStore> {
 
 export async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
     return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
+        getObjectStore().then((objectStore) => {
             const requestGetAllKeys = objectStore.getAllKeys();
             requestGetAllKeys.onsuccess = () => resolve(requestGetAllKeys.result);
         });
@@ -132,7 +128,7 @@ export async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
 
 export async function getSaveData(key: string): Promise<SaveData> {
     return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
+        getObjectStore().then((objectStore) => {
             const requestGet = objectStore.get(key);
             requestGet.onsuccess = () => resolve(requestGet.result);
         });
@@ -141,7 +137,7 @@ export async function getSaveData(key: string): Promise<SaveData> {
 
 export async function insertSaveData(saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
+        getObjectStore().then((objectStore) => {
             const requestPut = objectStore.put(saveData, new Date().toISOString());
             requestPut.onsuccess = () => resolve();
         });
@@ -150,7 +146,7 @@ export async function insertSaveData(saveData: SaveData): Promise<void> {
 
 export async function updateSaveData(key: string, saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
+        getObjectStore().then((objectStore) => {
             const requestPut = objectStore.put(saveData, key);
             requestPut.onsuccess = () => resolve();
         });
@@ -159,7 +155,7 @@ export async function updateSaveData(key: string, saveData: SaveData): Promise<v
 
 export async function deleteSaveData(key: string): Promise<void> {
     return new Promise((resolve) => {
-        getObjectStore().then(objectStore => {
+        getObjectStore().then((objectStore) => {
             const requestDelete = objectStore.delete(key);
             requestDelete.onsuccess = () => resolve();
         });
@@ -225,7 +221,7 @@ export function setOfficeSetup(divisionName: string, employeeJobs: number[]): vo
     if (!isTestingToolsAvailable()) {
         return;
     }
-    const size = employeeJobs.reduce((accumulator, current) => accumulator += current, 0);
+    const size = employeeJobs.reduce((accumulator, current) => (accumulator += current), 0);
     const offices = Object.values(Player.corporation!.divisions.get(divisionName)!.offices);
     for (const office of offices) {
         office.size = size;
@@ -295,8 +291,10 @@ export function clearMaterials(
     for (const warehouse of warehouses) {
         const materials = Object.values(warehouse.materials);
         for (const material of materials) {
-            if ((options.input && requiredMaterials.includes(material.name))
-                || (options.output && producedMaterials.includes(material.name))) {
+            if (
+                (options.input && requiredMaterials.includes(material.name)) ||
+                (options.output && producedMaterials.includes(material.name))
+            ) {
                 material.stored = 0;
             }
         }
