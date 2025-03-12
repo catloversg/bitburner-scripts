@@ -23,7 +23,7 @@ function rerun(ns: NS) {
 }
 
 function removeTestingTool() {
-    let testingToolsDiv = doc.querySelector("#testing-tools");
+    const testingToolsDiv = doc.querySelector("#testing-tools");
     // Remove old tools
     if (testingToolsDiv) {
         testingToolsDiv.remove();

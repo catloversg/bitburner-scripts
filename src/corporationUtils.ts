@@ -1,6 +1,5 @@
 import {
     CorpIndustryData,
-    CorpIndustryName,
     CorpMaterialName,
     Division,
     Material,
