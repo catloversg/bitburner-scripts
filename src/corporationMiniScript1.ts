@@ -2,7 +2,7 @@
 import { AutocompleteData, NS } from "@ns";
 import { NetscriptFlagsSchema } from "/libs/NetscriptExtension";
 
-export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
+export function autocomplete(_data: AutocompleteData, _flags: string[]): string[] {
   return ["--divisionName", "Agriculture"];
 }
 

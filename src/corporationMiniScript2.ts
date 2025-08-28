@@ -49,10 +49,10 @@ export async function main(ns: NS): Promise<void> {
   const divisionName = config.divisionName as string;
 
   const option = {
-    aiCores: 2114,
-    hardware: 2404,
-    realEstate: 124960,
-    robots: 23,
+    aiCores: 1606,
+    hardware: 1840,
+    realEstate: 100595,
+    robots: 0,
   };
 
   for (const city of cities) {
