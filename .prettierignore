@@ -1,0 +1,9 @@
+src/libs/acorn.js
+src/libs/Alglib.js
+src/libs/Ceres.js
+src/libs/comlink.d.ts
+src/libs/comlink.js
+src/libs/heap.js
+src/libs/priorityQueue.js
+src/libs/protocol.d.ts
+src/libs/walk.js
