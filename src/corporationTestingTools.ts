@@ -4,7 +4,8 @@ import { EmployeePosition, MaterialName, ResearchName, UpgradeName } from "/corp
 import { getRecordEntries, PartialRecord } from "/libs/Record";
 import { CorpUpgradesData } from "/data/CorpUpgradesData";
 import { CorpMaterialsData } from "./data/CorpMaterialsData";
-import type { SaveData } from "/exploits";
+
+type SaveData = string | Uint8Array;
 
 declare global {
   // eslint-disable-next-line no-var

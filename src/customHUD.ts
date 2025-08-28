@@ -5,7 +5,7 @@ import { parseNumber } from "/libs/utils";
 import { UpgradeName } from "/corporationFormulas";
 import { clearPurchaseOrders, DivisionName, hasDivision } from "/corporationUtils";
 import * as testingTools from "/corporationTestingTools";
-import { exposeGameInternalObjects } from "/exploits";
+import { exposeInternalGameObjects } from "/exploits.js";
 
 let ns: NS;
 let nsx: NetscriptExtension;
@@ -319,7 +319,7 @@ function createTestingTool() {
 }
 
 export async function main(nsContext: NS): Promise<void> {
-  exposeGameInternalObjects();
+  exposeInternalGameObjects();
   testingTools.setDefaultSettings();
   ns = nsContext;
   nsx = new NetscriptExtension(ns);

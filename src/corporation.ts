@@ -72,7 +72,7 @@ import {
 } from "/corporationOptimizer";
 import * as testingTools from "/corporationTestingTools";
 import { corporationEventLogger } from "/corporationEventLogger";
-import { exposeGameInternalObjects } from "/exploits";
+import { exposeInternalGameObjects } from "/exploits.js";
 
 export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
   return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
@@ -1790,7 +1790,7 @@ export async function main(nsContext: NS): Promise<void> {
   tobaccoIndustryData = ns.corporation.getIndustryData(IndustryType.TOBACCO);
 
   if (config.benchmark === true) {
-    exposeGameInternalObjects();
+    exposeInternalGameObjects();
     testingTools.resetRNGData();
     enableTestingTools = true;
   }
