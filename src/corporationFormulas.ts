@@ -35,7 +35,6 @@ export enum UnlockName {
   SMART_SUPPLY = "Smart Supply",
   MARKET_RESEARCH_DEMAND = "Market Research - Demand",
   MARKET_DATA_COMPETITION = "Market Data - Competition",
-  VE_CHAIN = "VeChain",
   SHADY_ACCOUNTING = "Shady Accounting",
   GOVERNMENT_PARTNERSHIP = "Government Partnership",
   WAREHOUSE_API = "Warehouse API",

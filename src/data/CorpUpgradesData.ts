@@ -21,13 +21,6 @@ export const CorpUpgradesData: {
     benefit: 0.1,
     desc: "Advanced AI automatically optimizes your warehouse storage methods. Each level of this upgrade increases your global warehouse storage size by 10% (additive).",
   },
-  DreamSense: {
-    name: "DreamSense",
-    basePrice: 4000000000,
-    priceMult: 1.1,
-    benefit: 0.001,
-    desc: "Use DreamSense LCC Technologies to advertise your corporation to consumers through their dreams. Each level of this upgrade provides a passive increase in awareness of all of your companies (divisions) by 0.004 / market cycle,and in popularity by 0.001 / market cycle. A market cycle is approximately 10 seconds.",
-  },
   "Wilson Analytics": {
     name: "Wilson Analytics",
     basePrice: 4000000000,
