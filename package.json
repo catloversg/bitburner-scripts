@@ -7,16 +7,21 @@
   "scripts": {
     "lint": "eslint .",
     "build": "node build.mjs",
-    "watch": "npm run build && node watch.mjs"
+    "watch": "npm run build && node watch.mjs",
+    "remote": "node watch.mjs"
   },
   "devDependencies": {
-    "@typescript-eslint/parser": "^8.26.1",
-    "@typescript-eslint/eslint-plugin": "^8.26.1",
-    "eslint": "^8.57.1",
-    "typescript": "^5.8.2",
-    "esbuild": "^0.25.1",
-    "fast-glob": "^3.3.3",
+    "@babel/core": "^7.28.3",
+    "@babel/preset-typescript": "^7.27.1",
+    "@swc/core": "^1.13.5",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
     "cheap-watch": "1.0.4",
-    "ws": "^8.18.1"
+    "esbuild": "^0.25.9",
+    "eslint": "^8.57.1",
+    "fast-glob": "^3.3.3",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "ws": "^8.18.3"
   }
 }

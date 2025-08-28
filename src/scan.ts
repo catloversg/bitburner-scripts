@@ -40,7 +40,7 @@ export function main(ns: NS): void {
                     + `. Hacking skill: ${ns.getServerRequiredHackingLevel(host.hostname)}`
                 );
                 ns.tprintf(
-                    `${prefix} ┃    Max money: ${ns.formatNumber(ns.getServerMaxMoney(host.hostname))}`
+                    `${prefix} ┃    Max money: ${ns.format.number(ns.getServerMaxMoney(host.hostname))}`
                     + `. Difficulty: ${ns.getServerMinSecurityLevel(host.hostname)} - ${ns.getServerBaseSecurityLevel(host.hostname)}`
                     + `. Growth: ${ns.getServerGrowth(host.hostname)}`
                     + `. Hack chance: ${ns.hackAnalyzeChance(host.hostname)}`
@@ -68,7 +68,7 @@ export function main(ns: NS): void {
                 + `. Hacking skill: ${ns.getServerRequiredHackingLevel(host.hostname)}`
             );
             ns.tprintf(
-                `    Max money: ${ns.formatNumber(ns.getServerMaxMoney(host.hostname))}`
+                `    Max money: ${ns.format.number(ns.getServerMaxMoney(host.hostname))}`
                 + `. Difficulty: ${ns.getServerMinSecurityLevel(host.hostname)} - ${ns.getServerBaseSecurityLevel(host.hostname)}`
                 + `. Growth: ${ns.getServerGrowth(host.hostname)}`
                 + `. Hack chance: ${ns.hackAnalyzeChance(host.hostname)}`

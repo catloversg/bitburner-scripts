@@ -17,7 +17,7 @@ export async function main(ns: NS): Promise<void> {
     nsx.killProcessesSpawnFromSameScript();
 
     ns.disableLog("ALL");
-    ns.tail();
+    ns.ui.openTail();
 
     const stockSymbols = ns.stock.getSymbols();
     const stockTraderData: StockTraderData = {

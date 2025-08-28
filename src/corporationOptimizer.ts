@@ -2,7 +2,6 @@ import { CorpIndustryData, Division, Material, Product } from "@ns";
 import * as comlink from "/libs/comlink";
 import { getOptimalBoostMaterialQuantities, getProductMarkup, isProduct, Logger } from "/corporationUtils";
 import {
-    CityName,
     CorporationUpgradeLevels,
     DivisionResearches,
     formatNumber,
@@ -564,7 +563,7 @@ export async function calculateOfficeBenchmarkData(
             productMarkup = await getProductMarkup(
                 division,
                 industryData,
-                CityName.Sector12,
+                "Sector-12",
                 item,
                 undefined
             );

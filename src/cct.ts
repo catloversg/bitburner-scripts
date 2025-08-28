@@ -113,7 +113,7 @@ export function main(ns: NS): void {
 
     ns.disableLog("ALL");
     ns.clearLog();
-    ns.tail();
+    ns.ui.openTail();
 
     nsx.scanBFS("home", host => {
         const filenames = ns.ls(host.hostname, ".cct");

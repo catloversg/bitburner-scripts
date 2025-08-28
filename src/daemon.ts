@@ -62,7 +62,7 @@ export async function main(nsContext: NS): Promise<void> {
     config = ns.flags(defaultConfig);
 
     ns.disableLog("ALL");
-    // ns.tail();
+    // ns.ui.openTail();
     ns.clearLog();
 
     if (config.maintainCorporation === true && ns.corporation.hasCorporation()) {
@@ -84,7 +84,7 @@ export async function main(nsContext: NS): Promise<void> {
                     if (!division.makesProducts) {
                         return;
                     }
-                    const industryData = ns.corporation.getIndustryData(division.type);
+                    const industryData = ns.corporation.getIndustryData(division.industry);
                     const office = ns.corporation.getOffice(divisionName, city);
                     for (const productName of division.products) {
                         const product = ns.corporation.getProduct(divisionName, city, productName);

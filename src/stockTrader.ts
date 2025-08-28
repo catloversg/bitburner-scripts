@@ -32,9 +32,9 @@ customConfig = <Config>{
 
 function printStockData(ns: NS) {
     const stockStats = nsx.calculateStockStats();
-    ns.print(`Current profit: ${ns.formatNumber(stockStats.currentProfit)}`);
-    ns.print(`Estimated total profit: ${ns.formatNumber(stockStats.estimatedTotalProfit)}`);
-    ns.print(`Current worth: ${ns.formatNumber(stockStats.currentWorth)}`);
+    ns.print(`Current profit: ${ns.format.number(stockStats.currentProfit)}`);
+    ns.print(`Estimated total profit: ${ns.format.number(stockStats.estimatedTotalProfit)}`);
+    ns.print(`Current worth: ${ns.format.number(stockStats.currentWorth)}`);
 }
 
 async function tradeStocksWithS4MarketData(ns: NS, config: Config) {
@@ -203,19 +203,19 @@ export async function main(ns: NS): Promise<void> {
 
     ns.disableLog("ALL");
 
-    if (!ns.stock.hasWSEAccount()) {
+    if (!ns.stock.hasWseAccount()) {
         ns.tprint("Please buy WSE account");
         return;
     }
-    if (!ns.stock.hasTIXAPIAccess()) {
+    if (!ns.stock.hasTixApiAccess()) {
         ns.tprint("Please buy TIX API access");
         return;
     }
-    // ns.tail();
-    // ns.resizeTail(330, 110);
-    // ns.moveTail(2000, 0);
+    // ns.ui.openTail();
+    // ns.ui.resizeTail(330, 110);
+    // ns.ui.moveTail(2000, 0);
 
-    if (ns.stock.has4SDataTIXAPI()) {
+    if (ns.stock.has4SDataTixApi()) {
         await tradeStocksWithS4MarketData(ns, config);
     } else {
         await tradeStocksWithoutS4MarketData(ns, config);

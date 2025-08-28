@@ -1,19 +1,9 @@
-import {
-    CorpIndustryData,
-    CorpMaterialName,
-    Division,
-    Material,
-    NS,
-    Office,
-    Product,
-    Warehouse
-} from "@ns";
+import type { CityName, CorpEmployeePosition, CorpIndustryData, CorpMaterialName, CorpUnlockName, CorpUpgradeName, Division, Material, NS, Office, Product, Warehouse } from "@ns";
 import { getRecordEntries, getRecordKeys, PartialRecord } from "/libs/Record";
 import { parseNumber } from "/libs/utils";
 import { Ceres } from "/libs/Ceres";
 import {
     CeresSolverResult,
-    CityName,
     CorporationUpgradeLevels,
     CorpState,
     DivisionResearches,
@@ -33,26 +23,20 @@ import {
     OfficeSetupJobs,
     productMarketPriceMultiplier,
     ResearchName,
-    ResearchPriority,
     UnlockName,
-    UpgradeName
+    UpgradeName,
 } from "/corporationFormulas";
 import { CorpMaterialsData } from "/data/CorpMaterialsData";
 
 export enum DivisionName {
     AGRICULTURE = "Agriculture",
     CHEMICAL = "Chemical",
-    TOBACCO = "Tobacco",
+    TOBACCO_0 = "T0",
+    TOBACCO_1 = "T1",
+    RESTAURANT_0 = "R0",
 }
 
-export const cities: CityName[] = [
-    CityName.Sector12,
-    CityName.Aevum,
-    CityName.Chongqing,
-    CityName.NewTokyo,
-    CityName.Ishima,
-    CityName.Volhaven
-];
+export const cities = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"] as const;
 
 export const materials = Object.values(MaterialName);
 
@@ -63,29 +47,26 @@ export const boostMaterials = [
     MaterialName.ROBOTS,
 ];
 
-const costMultiplierForEmployeeStatsResearch = 5;
-const costMultiplierForProductionResearch = 10;
+export const researchPrioritiesForSupportDivision: ResearchName[] = [
+    ResearchName.HI_TECH_RND_LABORATORY,
+    ResearchName.OVERCLOCK,
+    ResearchName.STIMU,
+    ResearchName.AUTO_DRUG,
+    ResearchName.GO_JUICE,
+    ResearchName.CPH4_INJECT,
 
-export const researchPrioritiesForSupportDivision: ResearchPriority[] = [
-    { research: ResearchName.HI_TECH_RND_LABORATORY, costMultiplier: 1 },
-    { research: ResearchName.OVERCLOCK, costMultiplier: costMultiplierForEmployeeStatsResearch },
-    { research: ResearchName.STIMU, costMultiplier: costMultiplierForEmployeeStatsResearch },
-    { research: ResearchName.AUTO_DRUG, costMultiplier: 13.5 },
-    { research: ResearchName.GO_JUICE, costMultiplier: costMultiplierForEmployeeStatsResearch },
-    { research: ResearchName.CPH4_INJECT, costMultiplier: costMultiplierForEmployeeStatsResearch },
-
-    { research: ResearchName.SELF_CORRECTING_ASSEMBLERS, costMultiplier: costMultiplierForProductionResearch },
-    { research: ResearchName.DRONES, costMultiplier: 50 },
-    { research: ResearchName.DRONES_ASSEMBLY, costMultiplier: costMultiplierForProductionResearch },
-    { research: ResearchName.DRONES_TRANSPORT, costMultiplier: costMultiplierForProductionResearch },
+    ResearchName.SELF_CORRECTING_ASSEMBLERS,
+    ResearchName.DRONES,
+    ResearchName.DRONES_ASSEMBLY,
+    ResearchName.DRONES_TRANSPORT,
 ];
 
-export const researchPrioritiesForProductDivision: ResearchPriority[] = [
+export const researchPrioritiesForProductDivision: ResearchName[] = [
     ...researchPrioritiesForSupportDivision,
-    { research: ResearchName.UPGRADE_FULCRUM, costMultiplier: costMultiplierForProductionResearch },
-    // Do not buy these researches
-    // {research: ResearchName.UPGRADE_CAPACITY_1, costMultiplier: costMultiplierForProductionResearch},
-    // {research: ResearchName.UPGRADE_CAPACITY_2, costMultiplier: costMultiplierForProductionResearch},
+    ResearchName.UPGRADE_FULCRUM,
+    // Do not buy
+    // ResearchName.UPGRADE_CAPACITY_1,
+    // ResearchName.UPGRADE_CAPACITY_2
 ];
 
 export const exportString = "(IPROD+IINV/10)*(-1)";
@@ -115,7 +96,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.log(...args);
         }
     }
@@ -124,7 +105,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.warn(...args);
         }
     }
@@ -133,7 +114,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.error(...args);
         }
     }
@@ -142,7 +123,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.time(label);
         }
     }
@@ -151,7 +132,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.timeEnd(label);
         }
     }
@@ -160,7 +141,7 @@ export class Logger {
         if (!this.#enableLogging) {
             return;
         }
-        if (this.city === undefined || this.city === CityName.Sector12) {
+        if (this.city === undefined || this.city === "Sector-12") {
             console.timeLog(label);
         }
     }
@@ -185,7 +166,7 @@ export function loopAllDivisionsAndCities(ns: NS, callback: (divisionName: strin
 
 export async function loopAllDivisionsAndCitiesAsyncCallback(
     ns: NS,
-    callback: (divisionName: string, city: CityName) => Promise<void>
+    callback: (divisionName: string, city: CityName) => Promise<void>,
 ): Promise<void> {
     for (const division of ns.corporation.getCorporation().divisions) {
         if (division.startsWith(dummyDivisionNamePrefix)) {
@@ -233,7 +214,7 @@ export function hasDivision(ns: NS, divisionName: string): boolean {
     return ns.corporation.getCorporation().divisions.includes(divisionName);
 }
 
-export function buyUpgrade(ns: NS, upgrade: UpgradeName, targetLevel: number): void {
+export function buyUpgrade(ns: NS, upgrade: CorpUpgradeName, targetLevel: number): void {
     for (let i = ns.corporation.getUpgradeLevel(upgrade); i < targetLevel; i++) {
         ns.corporation.levelUpgrade(upgrade);
     }
@@ -251,7 +232,7 @@ export function buyAdvert(ns: NS, divisionName: string, targetLevel: number): vo
     }
 }
 
-export function buyUnlock(ns: NS, unlockName: UnlockName): void {
+export function buyUnlock(ns: NS, unlockName: CorpUnlockName): void {
     if (ns.corporation.hasUnlock(unlockName)) {
         return;
     }
@@ -361,7 +342,6 @@ export function generateOfficeSetupsForEarlyRounds(size: number, increaseBusines
                     { name: EmployeePosition.BUSINESS, count: 2 },
                     { name: EmployeePosition.MANAGEMENT, count: 1 },
                 ];
-
             } else {
                 officeSetup = [
                     { name: EmployeePosition.OPERATIONS, count: 2 },
@@ -379,7 +359,6 @@ export function generateOfficeSetupsForEarlyRounds(size: number, increaseBusines
                     { name: EmployeePosition.BUSINESS, count: 2 },
                     { name: EmployeePosition.MANAGEMENT, count: 2 },
                 ];
-
             } else {
                 officeSetup = [
                     { name: EmployeePosition.OPERATIONS, count: 3 },
@@ -401,7 +380,6 @@ export function generateOfficeSetupsForEarlyRounds(size: number, increaseBusines
                     // { name: EmployeePosition.BUSINESS, count: 3 },
                     // { name: EmployeePosition.MANAGEMENT, count: 2 },
                 ];
-
             } else {
                 officeSetup = [
                     { name: EmployeePosition.OPERATIONS, count: 3 },
@@ -414,17 +392,17 @@ export function generateOfficeSetupsForEarlyRounds(size: number, increaseBusines
         default:
             throw new Error(`Invalid office size: ${size}`);
     }
-    return generateOfficeSetups(
-        cities,
-        size,
-        officeSetup
-    );
+    return generateOfficeSetups(cities, size, officeSetup);
 }
 
-export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
-    name: EmployeePosition;
-    count: number;
-}[]): OfficeSetup[] {
+export function generateOfficeSetups(
+    cities: readonly CityName[],
+    size: number,
+    jobs: {
+        name: CorpEmployeePosition;
+        count: number;
+    }[],
+): OfficeSetup[] {
     const officeSetupJobs: OfficeSetupJobs = {
         Operations: 0,
         Engineer: 0,
@@ -462,7 +440,7 @@ export function generateOfficeSetups(cities: CityName[], size: number, jobs: {
         officeSetups.push({
             city: city,
             size: size,
-            jobs: officeSetupJobs
+            jobs: officeSetupJobs,
         });
     }
     return officeSetups;
@@ -472,11 +450,14 @@ export function assignJobs(ns: NS, divisionName: string, officeSetups: OfficeSet
     for (const officeSetup of officeSetups) {
         // Reset all jobs
         for (const jobName of Object.values(EmployeePosition)) {
-            ns.corporation.setAutoJobAssignment(divisionName, officeSetup.city, jobName, 0);
+            if (jobName === EmployeePosition.UNASSIGNED) {
+                continue;
+            }
+            ns.corporation.setJobAssignment(divisionName, officeSetup.city, jobName, 0);
         }
         // Assign jobs
-        for (const [jobName, count] of Object.entries(officeSetup.jobs)) {
-            if (!ns.corporation.setAutoJobAssignment(divisionName, officeSetup.city, jobName, count)) {
+        for (const [jobName, count] of getRecordEntries(officeSetup.jobs)) {
+            if (!ns.corporation.setJobAssignment(divisionName, officeSetup.city, jobName, count)) {
                 ns.print(`Cannot assign job properly. City: ${officeSetup.city}, job: ${jobName}, count: ${count}`);
             }
         }
@@ -496,8 +477,7 @@ export function upgradeOffices(ns: NS, divisionName: string, officeSetups: Offic
         }
         // Hire employees
         // eslint-disable-next-line no-empty
-        while (ns.corporation.hireEmployee(divisionName, officeSetup.city, EmployeePosition.RESEARCH_DEVELOPMENT)) {
-        }
+        while (ns.corporation.hireEmployee(divisionName, officeSetup.city, EmployeePosition.RESEARCH_DEVELOPMENT)) {}
     }
     // Assign jobs
     assignJobs(ns, divisionName, officeSetups);
@@ -512,7 +492,7 @@ export function clearPurchaseOrders(ns: NS, clearInputMaterialOrders: boolean = 
         }
         if (clearInputMaterialOrders) {
             const division = ns.corporation.getDivision(divisionName);
-            const industrialData = ns.corporation.getIndustryData(division.type);
+            const industrialData = ns.corporation.getIndustryData(division.industry);
             for (const materialName of getRecordKeys(industrialData.requiredMaterials)) {
                 ns.corporation.buyMaterial(divisionName, city, materialName, 0);
                 ns.corporation.sellMaterial(divisionName, city, materialName, "0", "MP");
@@ -522,17 +502,17 @@ export function clearPurchaseOrders(ns: NS, clearInputMaterialOrders: boolean = 
 }
 
 export function generateMaterialsOrders(
-    cities: CityName[],
+    cities: readonly CityName[],
     materials: {
         name: MaterialName;
         count: number;
-    }[]
+    }[],
 ): MaterialOrder[] {
     const orders: MaterialOrder[] = [];
     for (const city of cities) {
         orders.push({
             city: city,
-            materials: materials
+            materials: materials,
         });
     }
     return orders;
@@ -543,13 +523,14 @@ export async function stockMaterials(
     divisionName: string,
     orders: MaterialOrder[],
     bulkPurchase = false,
-    discardExceeded = false
+    discardExceeded = false,
 ): Promise<void> {
     let count = 0;
     while (true) {
         if (count === 5) {
-            const warningMessage = `It takes too many cycles to stock up on materials. Division: ${divisionName}, `
-                + `orders: ${JSON.stringify(orders)}`;
+            const warningMessage =
+                `It takes too many cycles to stock up on materials. Division: ${divisionName}, ` +
+                `orders: ${JSON.stringify(orders)}`;
             showWarning(ns, warningMessage);
             break;
         }
@@ -565,9 +546,19 @@ export async function stockMaterials(
                 // Buy
                 if (storedAmount < material.count) {
                     if (bulkPurchase) {
-                        ns.corporation.bulkPurchase(divisionName, order.city, material.name, material.count - storedAmount);
+                        ns.corporation.bulkPurchase(
+                            divisionName,
+                            order.city,
+                            material.name,
+                            material.count - storedAmount,
+                        );
                     } else {
-                        ns.corporation.buyMaterial(divisionName, order.city, material.name, (material.count - storedAmount) / 10);
+                        ns.corporation.buyMaterial(
+                            divisionName,
+                            order.city,
+                            material.name,
+                            (material.count - storedAmount) / 10,
+                        );
                         ns.corporation.sellMaterial(divisionName, order.city, material.name, "0", "MP");
                     }
                     finish = false;
@@ -575,7 +566,13 @@ export async function stockMaterials(
                 // Discard
                 else if (discardExceeded) {
                     ns.corporation.buyMaterial(divisionName, order.city, material.name, 0);
-                    ns.corporation.sellMaterial(divisionName, order.city, material.name, ((storedAmount - material.count) / 10).toString(), "0");
+                    ns.corporation.sellMaterial(
+                        divisionName,
+                        order.city,
+                        material.name,
+                        ((storedAmount - material.count) / 10).toString(),
+                        "0",
+                    );
                     finish = false;
                 }
             }
@@ -592,14 +589,13 @@ export function getCorporationUpgradeLevels(ns: NS): CorporationUpgradeLevels {
     const corporationUpgradeLevels: CorporationUpgradeLevels = {
         [UpgradeName.SMART_FACTORIES]: 0,
         [UpgradeName.SMART_STORAGE]: 0,
-        [UpgradeName.DREAM_SENSE]: 0,
         [UpgradeName.WILSON_ANALYTICS]: 0,
         [UpgradeName.NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS]: 0,
         [UpgradeName.SPEECH_PROCESSOR_IMPLANTS]: 0,
         [UpgradeName.NEURAL_ACCELERATORS]: 0,
         [UpgradeName.FOCUS_WIRES]: 0,
         [UpgradeName.ABC_SALES_BOTS]: 0,
-        [UpgradeName.PROJECT_INSIGHT]: 0
+        [UpgradeName.PROJECT_INSIGHT]: 0,
     };
     for (const upgradeName of Object.values(UpgradeName)) {
         corporationUpgradeLevels[upgradeName] = ns.corporation.getUpgradeLevel(upgradeName);
@@ -628,7 +624,7 @@ export function getDivisionResearches(ns: NS, divisionName: string): DivisionRes
         [ResearchName.UPGRADE_CAPACITY_1]: false,
         [ResearchName.UPGRADE_CAPACITY_2]: false,
         [ResearchName.UPGRADE_DASHBOARD]: false,
-        [ResearchName.UPGRADE_FULCRUM]: false
+        [ResearchName.UPGRADE_FULCRUM]: false,
     };
     for (const researchName of Object.values(ResearchName)) {
         divisionResearches[researchName] = ns.corporation.hasResearched(divisionName, researchName);
@@ -636,7 +632,17 @@ export function getDivisionResearches(ns: NS, divisionName: string): DivisionRes
     return divisionResearches;
 }
 
-export async function createDivision(ns: NS, divisionName: string, officeSize: number, warehouseLevel: number): Promise<Division> {
+export function getIndustryData(ns: NS, divisionName: string): CorpIndustryData {
+    const division = ns.corporation.getDivision(divisionName);
+    return ns.corporation.getIndustryData(division.industry);
+}
+
+export async function createDivision(
+    ns: NS,
+    divisionName: string,
+    officeSize: number,
+    warehouseLevel: number,
+): Promise<Division> {
     // Create division if not exists
     if (!hasDivision(ns, divisionName)) {
         let industryType;
@@ -647,8 +653,12 @@ export async function createDivision(ns: NS, divisionName: string, officeSize: n
             case DivisionName.CHEMICAL:
                 industryType = IndustryType.CHEMICAL;
                 break;
-            case DivisionName.TOBACCO:
+            case DivisionName.TOBACCO_0:
+            case DivisionName.TOBACCO_1:
                 industryType = IndustryType.TOBACCO;
+                break;
+            case DivisionName.RESTAURANT_0:
+                industryType = IndustryType.RESTAURANT;
                 break;
             default:
                 throw new Error(`Invalid division name: ${divisionName}`);
@@ -673,16 +683,12 @@ export async function createDivision(ns: NS, divisionName: string, officeSize: n
     upgradeOffices(
         ns,
         divisionName,
-        generateOfficeSetups(
-            cities,
-            officeSize,
-            [
-                {
-                    name: EmployeePosition.RESEARCH_DEVELOPMENT,
-                    count: officeSize
-                }
-            ]
-        )
+        generateOfficeSetups(cities, officeSize, [
+            {
+                name: EmployeePosition.RESEARCH_DEVELOPMENT,
+                count: officeSize,
+            },
+        ]),
     );
     for (const city of cities) {
         upgradeWarehouse(ns, divisionName, city, warehouseLevel);
@@ -697,29 +703,30 @@ export async function createDivision(ns: NS, divisionName: string, officeSize: n
 export function getOptimalBoostMaterialQuantities(
     industryData: CorpIndustryData,
     spaceConstraint: number,
-    round: boolean = true
+    round: boolean = true,
 ): number[] {
     const { aiCoreFactor, hardwareFactor, realEstateFactor, robotFactor } = industryData;
     const boostMaterialCoefficients = [aiCoreFactor!, hardwareFactor!, realEstateFactor!, robotFactor!];
-    const boostMaterialSizes = boostMaterials.map(mat => CorpMaterialsData[mat].size);
+    const boostMaterialSizes = boostMaterials.map((mat) => CorpMaterialsData[mat].size);
 
-    const calculateOptimalQuantities = (
-        matCoefficients: number[],
-        matSizes: number[]
-    ): number[] => {
+    const calculateOptimalQuantities = (matCoefficients: number[], matSizes: number[]): number[] => {
         const sumOfCoefficients = matCoefficients.reduce((a, b) => a + b, 0);
         const sumOfSizes = matSizes.reduce((a, b) => a + b, 0);
         const result = [];
         for (let i = 0; i < matSizes.length; ++i) {
             let matCount =
-                (spaceConstraint - 500 * ((matSizes[i] / matCoefficients[i]) * (sumOfCoefficients - matCoefficients[i]) - (sumOfSizes - matSizes[i])))
-                / (sumOfCoefficients / matCoefficients[i])
-                / matSizes[i];
+                (spaceConstraint -
+                    500 *
+                        ((matSizes[i] / matCoefficients[i]) * (sumOfCoefficients - matCoefficients[i]) -
+                            (sumOfSizes - matSizes[i]))) /
+                (sumOfCoefficients / matCoefficients[i]) /
+                matSizes[i];
             if (matCoefficients[i] <= 0 || matCount < 0) {
-                return calculateOptimalQuantities(
-                    matCoefficients.toSpliced(i, 1),
-                    matSizes.toSpliced(i, 1)
-                ).toSpliced(i, 0, 0);
+                return calculateOptimalQuantities(matCoefficients.toSpliced(i, 1), matSizes.toSpliced(i, 1)).toSpliced(
+                    i,
+                    0,
+                    0,
+                );
             } else {
                 if (round) {
                     matCount = Math.round(matCount);
@@ -759,23 +766,18 @@ function buildSmartSupplyKey(divisionName: string, city: CityName): string {
     return `${divisionName}|${city}`;
 }
 
-export function getRawProduction(
-    ns: NS,
-    division: Division,
-    city: CityName,
-    isProduct: boolean
-): number {
+export function getRawProduction(ns: NS, division: Division, city: CityName, isProduct: boolean): number {
     const office = ns.corporation.getOffice(division.name, city);
     let rawProduction = getDivisionRawProduction(
         isProduct,
         {
             operationsProduction: office.employeeProductionByJob.Operations,
             engineerProduction: office.employeeProductionByJob.Engineer,
-            managementProduction: office.employeeProductionByJob.Management
+            managementProduction: office.employeeProductionByJob.Management,
         },
         division.productionMult,
         getCorporationUpgradeLevels(ns),
-        getDivisionResearches(ns, division.name)
+        getDivisionResearches(ns, division.name),
     );
     rawProduction = rawProduction * 10;
     return rawProduction;
@@ -788,7 +790,7 @@ export function getLimitedRawProduction(
     industrialData: CorpIndustryData,
     warehouse: Warehouse,
     isProduct: boolean,
-    productSize?: number
+    productSize?: number,
 ): number {
     let rawProduction = getRawProduction(ns, division, city, isProduct);
 
@@ -802,13 +804,16 @@ export function getLimitedRawProduction(
             requiredStorageSpaceOfEachOutputUnit += ns.corporation.getMaterialData(outputMaterialName).size;
         }
     }
-    for (const [requiredMaterialName, requiredMaterialCoefficient] of getRecordEntries(industrialData.requiredMaterials)) {
-        requiredStorageSpaceOfEachOutputUnit -= ns.corporation.getMaterialData(requiredMaterialName).size * requiredMaterialCoefficient;
+    for (const [requiredMaterialName, requiredMaterialCoefficient] of getRecordEntries(
+        industrialData.requiredMaterials,
+    )) {
+        requiredStorageSpaceOfEachOutputUnit -=
+            ns.corporation.getMaterialData(requiredMaterialName).size * requiredMaterialCoefficient;
     }
     // Limit the raw production if needed
     if (requiredStorageSpaceOfEachOutputUnit > 0) {
         const maxNumberOfOutputUnits = Math.floor(
-            (warehouse.size - warehouse.sizeUsed) / requiredStorageSpaceOfEachOutputUnit
+            (warehouse.size - warehouse.sizeUsed) / requiredStorageSpaceOfEachOutputUnit,
         );
         rawProduction = Math.min(rawProduction, maxNumberOfOutputUnits);
     }
@@ -824,19 +829,12 @@ export function setSmartSupplyData(ns: NS): void {
     }
     loopAllDivisionsAndCities(ns, (divisionName, city) => {
         const division = ns.corporation.getDivision(divisionName);
-        const industrialData = ns.corporation.getIndustryData(division.type);
+        const industrialData = ns.corporation.getIndustryData(division.industry);
         const warehouse = ns.corporation.getWarehouse(division.name, city);
         let totalRawProduction = 0;
 
         if (industrialData.makesMaterials) {
-            totalRawProduction += getLimitedRawProduction(
-                ns,
-                division,
-                city,
-                industrialData,
-                warehouse,
-                false
-            );
+            totalRawProduction += getLimitedRawProduction(ns, division, city, industrialData, warehouse, false);
         }
 
         if (industrialData.makesProducts) {
@@ -852,7 +850,7 @@ export function setSmartSupplyData(ns: NS): void {
                     industrialData,
                     warehouse,
                     true,
-                    product.size
+                    product.size,
                 );
             }
         }
@@ -866,7 +864,7 @@ function detectWarehouseCongestion(
     division: Division,
     industrialData: CorpIndustryData,
     city: CityName,
-    warehouseCongestionData: Map<string, number>
+    warehouseCongestionData: Map<string, number>,
 ): boolean {
     const requiredMaterials = getRecordEntries(industrialData.requiredMaterials);
     let isWarehouseCongested = false;
@@ -938,20 +936,22 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
     // Loop and set buy amount
     loopAllDivisionsAndCities(ns, (divisionName, city) => {
         const division = ns.corporation.getDivision(divisionName);
-        const industrialData = ns.corporation.getIndustryData(division.type);
+        const industrialData = ns.corporation.getIndustryData(division.industry);
         const office = ns.corporation.getOffice(division.name, city);
         const requiredMaterials = getRecordEntries(industrialData.requiredMaterials);
 
         // Detect warehouse congestion
         let isWarehouseCongested = false;
-        if (!setOfDivisionsWaitingForRP.has(divisionName)
-            && office.employeeJobs["Research & Development"] !== office.numEmployees) {
+        if (
+            !setOfDivisionsWaitingForRP.has(divisionName) &&
+            office.employeeJobs["Research & Development"] !== office.numEmployees
+        ) {
             isWarehouseCongested = detectWarehouseCongestion(
                 ns,
                 division,
                 industrialData,
                 city,
-                warehouseCongestionData
+                warehouseCongestionData,
             );
         }
         if (isWarehouseCongested) {
@@ -959,21 +959,24 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         }
 
         const warehouse = ns.corporation.getWarehouse(division.name, city);
-        const inputMaterials: PartialRecord<CorpMaterialName, {
-            requiredQuantity: number,
-            coefficient: number;
-        }> = {};
+        const inputMaterials: PartialRecord<
+            CorpMaterialName,
+            {
+                requiredQuantity: number;
+                coefficient: number;
+            }
+        > = {};
         for (const [materialName, materialCoefficient] of requiredMaterials) {
             inputMaterials[materialName] = {
                 requiredQuantity: 0,
-                coefficient: materialCoefficient
+                coefficient: materialCoefficient,
             };
         }
 
         // Find required quantity of input materials to produce material/product
         for (const inputMaterialData of Object.values(inputMaterials)) {
-            const requiredQuantity = (smartSupplyData.get(buildSmartSupplyKey(divisionName, city)) ?? 0)
-                * inputMaterialData.coefficient;
+            const requiredQuantity =
+                (smartSupplyData.get(buildSmartSupplyKey(divisionName, city)) ?? 0) * inputMaterialData.coefficient;
             inputMaterialData.requiredQuantity += requiredQuantity;
         }
 
@@ -1012,7 +1015,9 @@ export function buyOptimalAmountOfInputMaterials(ns: NS, warehouseCongestionData
         if (requiredSpace > freeSpace) {
             const constrainedStorageSpaceMultiplier = freeSpace / requiredSpace;
             for (const inputMaterialData of Object.values(inputMaterials)) {
-                inputMaterialData.requiredQuantity = Math.floor(inputMaterialData.requiredQuantity * constrainedStorageSpaceMultiplier);
+                inputMaterialData.requiredQuantity = Math.floor(
+                    inputMaterialData.requiredQuantity * constrainedStorageSpaceMultiplier,
+                );
             }
         }
 
@@ -1043,22 +1048,25 @@ export async function findOptimalAmountOfBoostMaterials(
     industryData: CorpIndustryData,
     city: CityName,
     useWarehouseSize: boolean,
-    ratio: number
+    ratio: number,
 ): Promise<number[]> {
     const warehouseSize = ns.corporation.getWarehouse(divisionName, city).size;
     if (useWarehouseSize) {
         return getOptimalBoostMaterialQuantities(industryData, warehouseSize * ratio);
     }
     await waitUntilAfterStateHappens(ns, CorpState.PRODUCTION);
-    const availableSpace = ns.corporation.getWarehouse(divisionName, city).size
-        - ns.corporation.getWarehouse(divisionName, city).sizeUsed;
+    const availableSpace =
+        ns.corporation.getWarehouse(divisionName, city).size - ns.corporation.getWarehouse(divisionName, city).sizeUsed;
     return getOptimalBoostMaterialQuantities(industryData, availableSpace * ratio);
 }
 
-export async function waitUntilHavingEnoughResearchPoints(ns: NS, conditions: {
-    divisionName: string;
-    researchPoint: number;
-}[]): Promise<void> {
+export async function waitUntilHavingEnoughResearchPoints(
+    ns: NS,
+    conditions: {
+        divisionName: string;
+        researchPoint: number;
+    }[],
+): Promise<void> {
     ns.print(`Waiting for research points: ${JSON.stringify(conditions)}`);
     while (true) {
         let finish = true;
@@ -1087,14 +1095,14 @@ export async function waitUntilHavingEnoughResearchPoints(ns: NS, conditions: {
 export function getProductIdArray(ns: NS, divisionName: string): number[] {
     const products = ns.corporation.getDivision(divisionName).products;
     return products
-        .map(productName => {
+        .map((productName) => {
             const productNameParts = productName.split("-");
             if (productNameParts.length != 3) {
                 return NaN;
             }
             return parseNumber(productNameParts[1]);
         })
-        .filter(productIndex => !Number.isNaN(productIndex));
+        .filter((productIndex) => !Number.isNaN(productIndex));
 }
 
 /**
@@ -1131,7 +1139,7 @@ export function developNewProduct(
     ns: NS,
     divisionName: string,
     mainProductDevelopmentCity: CityName,
-    productDevelopmentBudget: number
+    productDevelopmentBudget: number,
 ): string | null {
     const products = ns.corporation.getDivision(divisionName).products;
 
@@ -1173,12 +1181,10 @@ export function developNewProduct(
     if (bestProduct) {
         const bestProductBudget = bestProduct.designInvestment + bestProduct.advertisingInvestment;
         if (productDevelopmentBudget < bestProductBudget * 0.5 && products.length >= 3) {
-            const warningMessage = `Budget for new product is too low: ${ns.formatNumber(productDevelopmentBudget)}. `
-                + `Current best product's budget: ${ns.formatNumber(bestProductBudget)}`;
-            showWarning(
-                ns,
-                warningMessage
-            );
+            const warningMessage =
+                `Budget for new product is too low: ${ns.format.number(productDevelopmentBudget)}. ` +
+                `Current best product's budget: ${ns.format.number(bestProductBudget)}`;
+            showWarning(ns, warningMessage);
         }
     }
 
@@ -1204,6 +1210,55 @@ export function getNewestProductName(ns: NS, divisionName: string): string | nul
     return products[products.length - 1];
 }
 
+export function estimateProductMarkup(
+    designInvestment: number,
+    advertisingInvestment: number,
+    divisionRP: number,
+    industryScienceFactor: number,
+    employeeProductionByJob: {
+        operationsProduction: number;
+        engineerProduction: number;
+        businessProduction: number;
+        managementProduction: number;
+        researchAndDevelopmentProduction: number;
+    },
+) {
+    const totalCreationJobFactors =
+        employeeProductionByJob.engineerProduction +
+        employeeProductionByJob.managementProduction +
+        employeeProductionByJob.researchAndDevelopmentProduction +
+        employeeProductionByJob.operationsProduction +
+        employeeProductionByJob.businessProduction;
+    const engineerRatio = employeeProductionByJob.engineerProduction / totalCreationJobFactors;
+    const managementRatio = employeeProductionByJob.managementProduction / totalCreationJobFactors;
+    const researchAndDevelopmentRatio =
+        employeeProductionByJob.researchAndDevelopmentProduction / totalCreationJobFactors;
+    const operationsRatio = employeeProductionByJob.operationsProduction / totalCreationJobFactors;
+    const businessRatio = employeeProductionByJob.businessProduction / totalCreationJobFactors;
+
+    const balanceMultiplier =
+        1.2 * engineerRatio +
+        0.9 * managementRatio +
+        1.3 * researchAndDevelopmentRatio +
+        1.5 * operationsRatio +
+        businessRatio;
+
+    const designInvestmentMultiplier = 1 + Math.pow(designInvestment, 0.1) / 100;
+    const researchPointMultiplier = 1 + Math.pow(divisionRP, industryScienceFactor) / 800;
+
+    const totalMultiplier = balanceMultiplier * designInvestmentMultiplier * researchPointMultiplier;
+    const productQuality =
+        totalMultiplier *
+        (0.1 * employeeProductionByJob.engineerProduction +
+            0.05 * employeeProductionByJob.managementProduction +
+            0.05 * employeeProductionByJob.researchAndDevelopmentProduction +
+            0.02 * employeeProductionByJob.operationsProduction +
+            0.02 * employeeProductionByJob.businessProduction);
+    const advertisingInvestmentMultiplier = 1 + Math.pow(advertisingInvestment, 0.1) / 100;
+    const businessManagementRatio = Math.max(businessRatio + managementRatio, 1 / totalCreationJobFactors);
+    return 100 / (advertisingInvestmentMultiplier * Math.pow(productQuality + 0.001, 0.65) * businessManagementRatio);
+}
+
 export async function calculateProductMarkup(
     divisionRP: number,
     industryScienceFactor: number,
@@ -1214,7 +1269,7 @@ export async function calculateProductMarkup(
         businessProduction: number;
         managementProduction: number;
         researchAndDevelopmentProduction: number;
-    }
+    },
 ): Promise<number> {
     const designInvestmentMultiplier = 1 + Math.pow(product.designInvestment, 0.1) / 100;
     const researchPointMultiplier = 1 + Math.pow(divisionRP, industryScienceFactor) / 800;
@@ -1224,45 +1279,145 @@ export async function calculateProductMarkup(
         creationJobFactorsManagement: number,
         creationJobFactorsRnD: number,
         creationJobFactorsOperations: number,
-        creationJobFactorsBusiness: number): number {
-        const totalCreationJobFactors = creationJobFactorsEngineer + creationJobFactorsManagement + creationJobFactorsRnD + creationJobFactorsOperations + creationJobFactorsBusiness;
+        creationJobFactorsBusiness: number,
+    ): number {
+        const totalCreationJobFactors =
+            creationJobFactorsEngineer +
+            creationJobFactorsManagement +
+            creationJobFactorsRnD +
+            creationJobFactorsOperations +
+            creationJobFactorsBusiness;
         const engineerRatio = creationJobFactorsEngineer / totalCreationJobFactors;
         const managementRatio = creationJobFactorsManagement / totalCreationJobFactors;
         const researchAndDevelopmentRatio = creationJobFactorsRnD / totalCreationJobFactors;
         const operationsRatio = creationJobFactorsOperations / totalCreationJobFactors;
         const businessRatio = creationJobFactorsBusiness / totalCreationJobFactors;
-        return 1.2 * engineerRatio + 0.9 * managementRatio + 1.3 * researchAndDevelopmentRatio + 1.5 * operationsRatio + businessRatio;
-
+        return (
+            1.2 * engineerRatio +
+            0.9 * managementRatio +
+            1.3 * researchAndDevelopmentRatio +
+            1.5 * operationsRatio +
+            businessRatio
+        );
     };
-    const f1 = function ([creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness]: number[]) {
-        return k
-            * balanceMultiplier(creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness)
-            * (0.1 * creationJobFactorsEngineer + 0.05 * creationJobFactorsManagement + 0.05 * creationJobFactorsRnD + 0.02 * creationJobFactorsOperations + 0.02 * creationJobFactorsBusiness)
-            - product.stats.quality;
+    const f1 = function ([
+        creationJobFactorsEngineer,
+        creationJobFactorsManagement,
+        creationJobFactorsRnD,
+        creationJobFactorsOperations,
+        creationJobFactorsBusiness,
+    ]: number[]) {
+        return (
+            k *
+                balanceMultiplier(
+                    creationJobFactorsEngineer,
+                    creationJobFactorsManagement,
+                    creationJobFactorsRnD,
+                    creationJobFactorsOperations,
+                    creationJobFactorsBusiness,
+                ) *
+                (0.1 * creationJobFactorsEngineer +
+                    0.05 * creationJobFactorsManagement +
+                    0.05 * creationJobFactorsRnD +
+                    0.02 * creationJobFactorsOperations +
+                    0.02 * creationJobFactorsBusiness) -
+            product.stats.quality
+        );
     };
-    const f2 = function ([creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness]: number[]) {
-        return k
-            * balanceMultiplier(creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness)
-            * (0.15 * creationJobFactorsEngineer + 0.02 * creationJobFactorsManagement + 0.02 * creationJobFactorsRnD + 0.02 * creationJobFactorsOperations + 0.02 * creationJobFactorsBusiness)
-            - product.stats.performance;
+    const f2 = function ([
+        creationJobFactorsEngineer,
+        creationJobFactorsManagement,
+        creationJobFactorsRnD,
+        creationJobFactorsOperations,
+        creationJobFactorsBusiness,
+    ]: number[]) {
+        return (
+            k *
+                balanceMultiplier(
+                    creationJobFactorsEngineer,
+                    creationJobFactorsManagement,
+                    creationJobFactorsRnD,
+                    creationJobFactorsOperations,
+                    creationJobFactorsBusiness,
+                ) *
+                (0.15 * creationJobFactorsEngineer +
+                    0.02 * creationJobFactorsManagement +
+                    0.02 * creationJobFactorsRnD +
+                    0.02 * creationJobFactorsOperations +
+                    0.02 * creationJobFactorsBusiness) -
+            product.stats.performance
+        );
     };
-    const f3 = function ([creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness]: number[]) {
-        return k
-            * balanceMultiplier(creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness)
-            * (0.05 * creationJobFactorsEngineer + 0.02 * creationJobFactorsManagement + 0.08 * creationJobFactorsRnD + 0.05 * creationJobFactorsOperations + 0.05 * creationJobFactorsBusiness)
-            - product.stats.durability;
+    const f3 = function ([
+        creationJobFactorsEngineer,
+        creationJobFactorsManagement,
+        creationJobFactorsRnD,
+        creationJobFactorsOperations,
+        creationJobFactorsBusiness,
+    ]: number[]) {
+        return (
+            k *
+                balanceMultiplier(
+                    creationJobFactorsEngineer,
+                    creationJobFactorsManagement,
+                    creationJobFactorsRnD,
+                    creationJobFactorsOperations,
+                    creationJobFactorsBusiness,
+                ) *
+                (0.05 * creationJobFactorsEngineer +
+                    0.02 * creationJobFactorsManagement +
+                    0.08 * creationJobFactorsRnD +
+                    0.05 * creationJobFactorsOperations +
+                    0.05 * creationJobFactorsBusiness) -
+            product.stats.durability
+        );
     };
-    const f4 = function ([creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness]: number[]) {
-        return k
-            * balanceMultiplier(creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness)
-            * (0.02 * creationJobFactorsEngineer + 0.08 * creationJobFactorsManagement + 0.02 * creationJobFactorsRnD + 0.05 * creationJobFactorsOperations + 0.08 * creationJobFactorsBusiness)
-            - product.stats.reliability;
+    const f4 = function ([
+        creationJobFactorsEngineer,
+        creationJobFactorsManagement,
+        creationJobFactorsRnD,
+        creationJobFactorsOperations,
+        creationJobFactorsBusiness,
+    ]: number[]) {
+        return (
+            k *
+                balanceMultiplier(
+                    creationJobFactorsEngineer,
+                    creationJobFactorsManagement,
+                    creationJobFactorsRnD,
+                    creationJobFactorsOperations,
+                    creationJobFactorsBusiness,
+                ) *
+                (0.02 * creationJobFactorsEngineer +
+                    0.08 * creationJobFactorsManagement +
+                    0.02 * creationJobFactorsRnD +
+                    0.05 * creationJobFactorsOperations +
+                    0.08 * creationJobFactorsBusiness) -
+            product.stats.reliability
+        );
     };
-    const f5 = function ([creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness]: number[]) {
-        return k
-            * balanceMultiplier(creationJobFactorsEngineer, creationJobFactorsManagement, creationJobFactorsRnD, creationJobFactorsOperations, creationJobFactorsBusiness)
-            * (0.08 * creationJobFactorsManagement + 0.05 * creationJobFactorsRnD + 0.02 * creationJobFactorsOperations + 0.1 * creationJobFactorsBusiness)
-            - product.stats.aesthetics;
+    const f5 = function ([
+        creationJobFactorsEngineer,
+        creationJobFactorsManagement,
+        creationJobFactorsRnD,
+        creationJobFactorsOperations,
+        creationJobFactorsBusiness,
+    ]: number[]) {
+        return (
+            k *
+                balanceMultiplier(
+                    creationJobFactorsEngineer,
+                    creationJobFactorsManagement,
+                    creationJobFactorsRnD,
+                    creationJobFactorsOperations,
+                    creationJobFactorsBusiness,
+                ) *
+                (0.08 * creationJobFactorsManagement +
+                    0.05 * creationJobFactorsRnD +
+                    0.02 * creationJobFactorsOperations +
+                    0.1 * creationJobFactorsBusiness) -
+            product.stats.aesthetics
+        );
     };
     let solverResult: CeresSolverResult = {
         success: false,
@@ -1285,7 +1440,7 @@ export async function calculateProductMarkup(
                 employeeProductionByJob.managementProduction,
                 employeeProductionByJob.researchAndDevelopmentProduction,
                 employeeProductionByJob.operationsProduction,
-                employeeProductionByJob.businessProduction
+                employeeProductionByJob.businessProduction,
             ];
         }
         solverResult = solver.solve(guess)!;
@@ -1294,13 +1449,17 @@ export async function calculateProductMarkup(
     if (!solverResult.success) {
         throw new Error(`ERROR: Cannot find hidden stats of product: ${JSON.stringify(product)}`);
     }
-    const totalCreationJobFactors = solverResult.x[0] + solverResult.x[1] + solverResult.x[2] + solverResult.x[3] + solverResult.x[4];
+    const totalCreationJobFactors =
+        solverResult.x[0] + solverResult.x[1] + solverResult.x[2] + solverResult.x[3] + solverResult.x[4];
     const managementRatio = solverResult.x[1] / totalCreationJobFactors;
     const businessRatio = solverResult.x[4] / totalCreationJobFactors;
 
     const advertisingInvestmentMultiplier = 1 + Math.pow(product.advertisingInvestment, 0.1) / 100;
     const businessManagementRatio = Math.max(businessRatio + managementRatio, 1 / totalCreationJobFactors);
-    return 100 / (advertisingInvestmentMultiplier * Math.pow(product.stats.quality + 0.001, 0.65) * businessManagementRatio);
+    return (
+        100 /
+        (advertisingInvestmentMultiplier * Math.pow(product.stats.quality + 0.001, 0.65) * businessManagementRatio)
+    );
 }
 
 export function isProduct(item: Material | Product): item is Product {
@@ -1323,7 +1482,7 @@ export async function getProductMarkup(
     industryData: CorpIndustryData,
     city: CityName,
     item: Product,
-    office?: Office
+    office?: Office,
 ): Promise<number> {
     let productMarkup;
     const productMarkupKey = `${division.name}|${city}|${item.name}`;
@@ -1333,13 +1492,15 @@ export async function getProductMarkup(
             division.researchPoints,
             industryData.scienceFactor!,
             item,
-            (office) ? {
-                operationsProduction: office.employeeProductionByJob.Operations,
-                engineerProduction: office.employeeProductionByJob.Engineer,
-                businessProduction: office.employeeProductionByJob.Business,
-                managementProduction: office.employeeProductionByJob.Management,
-                researchAndDevelopmentProduction: office.employeeProductionByJob["Research & Development"],
-            } : undefined
+            office
+                ? {
+                      operationsProduction: office.employeeProductionByJob.Operations,
+                      engineerProduction: office.employeeProductionByJob.Engineer,
+                      businessProduction: office.employeeProductionByJob.Business,
+                      managementProduction: office.employeeProductionByJob.Management,
+                      researchAndDevelopmentProduction: office.employeeProductionByJob["Research & Development"],
+                  }
+                : undefined,
         );
         productMarkupData.set(productMarkupKey, productMarkup);
     }
@@ -1361,7 +1522,7 @@ export async function getOptimalSellingPrice(
     division: Division,
     industryData: CorpIndustryData,
     city: CityName,
-    item: Material | Product
+    item: Material | Product,
 ): Promise<string> {
     const itemIsProduct = isProduct(item);
     if (itemIsProduct && item.developmentProgress < 100) {
@@ -1389,13 +1550,7 @@ export async function getOptimalSellingPrice(
     let itemMultiplier: number;
     let marketPrice: number;
     if (itemIsProduct) {
-        productMarkup = await getProductMarkup(
-            division,
-            industryData,
-            city,
-            item,
-            office
-        );
+        productMarkup = await getProductMarkup(division, industryData, city, item, office);
         markupLimit = Math.max(item.effectiveRating, 0.001) / productMarkup;
         itemMultiplier = 0.5 * Math.pow(item.effectiveRating, 0.65);
         marketPrice = item.productionCost;
@@ -1406,7 +1561,11 @@ export async function getOptimalSellingPrice(
     }
 
     const businessFactor = getBusinessFactor(office.employeeProductionByJob[EmployeePosition.BUSINESS]);
-    const advertisingFactor = getAdvertisingFactors(division.awareness, division.popularity, industryData.advertisingFactor!)[0];
+    const advertisingFactor = getAdvertisingFactors(
+        division.awareness,
+        division.popularity,
+        industryData.advertisingFactor!,
+    )[0];
     const marketFactor = getMarketFactor(item.demand!, item.competition!);
     const salesMultipliers =
         itemMultiplier *
@@ -1425,13 +1584,15 @@ export async function setOptimalSellingPriceForEverything(ns: NS): Promise<void>
     if (ns.corporation.getCorporation().nextState !== "SALE") {
         return;
     }
-    if (!ns.corporation.hasUnlock(UnlockName.MARKET_RESEARCH_DEMAND)
-        || !ns.corporation.hasUnlock(UnlockName.MARKET_DATA_COMPETITION)) {
+    if (
+        !ns.corporation.hasUnlock(UnlockName.MARKET_RESEARCH_DEMAND) ||
+        !ns.corporation.hasUnlock(UnlockName.MARKET_DATA_COMPETITION)
+    ) {
         return;
     }
     await loopAllDivisionsAndCitiesAsyncCallback(ns, async (divisionName, city) => {
         const division = ns.corporation.getDivision(divisionName);
-        const industryData = ns.corporation.getIndustryData(division.type);
+        const industryData = ns.corporation.getIndustryData(division.industry);
         const products = division.products;
         const hasMarketTA2 = ns.corporation.hasResearched(divisionName, ResearchName.MARKET_TA_2);
         if (industryData.makesProducts) {
@@ -1473,9 +1634,15 @@ export function getResearchPointGainRate(ns: NS, divisionName: string): number {
     for (const city of cities) {
         const office = ns.corporation.getOffice(divisionName, city);
         // 4 states: PURCHASE, PRODUCTION, EXPORT and SALE
-        totalGainRate += 4 * 0.004 * Math.pow(office.employeeProductionByJob[EmployeePosition.RESEARCH_DEVELOPMENT], 0.5)
-            * getUpgradeBenefit(UpgradeName.PROJECT_INSIGHT, ns.corporation.getUpgradeLevel(UpgradeName.PROJECT_INSIGHT))
-            * getResearchRPMultiplier(getDivisionResearches(ns, divisionName));
+        totalGainRate +=
+            4 *
+            0.004 *
+            Math.pow(office.employeeProductionByJob[EmployeePosition.RESEARCH_DEVELOPMENT], 0.5) *
+            getUpgradeBenefit(
+                UpgradeName.PROJECT_INSIGHT,
+                ns.corporation.getUpgradeLevel(UpgradeName.PROJECT_INSIGHT),
+            ) *
+            getResearchRPMultiplier(getDivisionResearches(ns, divisionName));
     }
     return totalGainRate;
 }
@@ -1485,9 +1652,9 @@ export async function buyBoostMaterials(ns: NS, division: Division): Promise<voi
     // in the script.
     const funds = ns.corporation.getCorporation().funds;
     if (funds < 10e9) {
-        throw new Error(`Funds is too small to buy boost materials. Funds: ${ns.formatNumber(funds)}.`);
+        throw new Error(`Funds is too small to buy boost materials. Funds: ${ns.format.number(funds)}.`);
     }
-    const industryData = ns.corporation.getIndustryData(division.type);
+    const industryData = ns.corporation.getIndustryData(division.industry);
     let reservedSpaceRatio = 0.2;
     const ratio = 0.1;
     if (industryData.makesProducts) {
@@ -1510,44 +1677,52 @@ export async function buyBoostMaterials(ns: NS, division: Division): Promise<voi
                 continue;
             }
             let effectiveRatio = ratio;
-            if ((availableSpace / warehouse.size < 0.5 && division.type === IndustryType.AGRICULTURE)
-                || (availableSpace / warehouse.size < 0.75
-                    && (division.type === IndustryType.CHEMICAL || division.type === IndustryType.TOBACCO))) {
+            if (
+                (availableSpace / warehouse.size < 0.5 && division.industry === IndustryType.AGRICULTURE) ||
+                (availableSpace / warehouse.size < 0.75 &&
+                    (division.industry === IndustryType.CHEMICAL || division.industry === IndustryType.TOBACCO))
+            ) {
                 effectiveRatio = 0.2;
             }
-            const boostMaterialQuantities = getOptimalBoostMaterialQuantities(industryData, availableSpace * effectiveRatio);
+            const boostMaterialQuantities = getOptimalBoostMaterialQuantities(
+                industryData,
+                availableSpace * effectiveRatio,
+            );
             orders.push({
                 city: city,
                 materials: [
                     {
                         name: MaterialName.AI_CORES,
-                        count: ns.corporation.getMaterial(division.name, city, MaterialName.AI_CORES).stored + boostMaterialQuantities[0]
+                        count:
+                            ns.corporation.getMaterial(division.name, city, MaterialName.AI_CORES).stored +
+                            boostMaterialQuantities[0],
                     },
                     {
                         name: MaterialName.HARDWARE,
-                        count: ns.corporation.getMaterial(division.name, city, MaterialName.HARDWARE).stored + boostMaterialQuantities[1]
+                        count:
+                            ns.corporation.getMaterial(division.name, city, MaterialName.HARDWARE).stored +
+                            boostMaterialQuantities[1],
                     },
                     {
                         name: MaterialName.REAL_ESTATE,
-                        count: ns.corporation.getMaterial(division.name, city, MaterialName.REAL_ESTATE).stored + boostMaterialQuantities[2]
+                        count:
+                            ns.corporation.getMaterial(division.name, city, MaterialName.REAL_ESTATE).stored +
+                            boostMaterialQuantities[2],
                     },
                     {
                         name: MaterialName.ROBOTS,
-                        count: ns.corporation.getMaterial(division.name, city, MaterialName.ROBOTS).stored + boostMaterialQuantities[3]
+                        count:
+                            ns.corporation.getMaterial(division.name, city, MaterialName.ROBOTS).stored +
+                            boostMaterialQuantities[3],
                     },
-                ]
+                ],
             });
             finish = false;
         }
         if (finish) {
             break;
         }
-        await stockMaterials(
-            ns,
-            division.name,
-            orders,
-            true
-        );
+        await stockMaterials(ns, division.name, orders, true);
         ++count;
     }
 }
@@ -1556,7 +1731,7 @@ export function getProductMarketPrice(
     ns: NS,
     division: Division,
     industryData: CorpIndustryData,
-    city: CityName
+    city: CityName,
 ): number {
     let productMarketPrice = 0;
     for (const [materialName, materialCoefficient] of getRecordEntries(industryData.requiredMaterials)) {
@@ -1586,12 +1761,17 @@ export function createDummyDivisions(ns: NS, numberOfDivisions: number): void {
     }
 }
 
-export async function waitForOffer(ns: NS, numberOfInitCycles: number, maxAdditionalCycles: number, expectedOffer: number): Promise<void> {
+export async function waitForOffer(
+    ns: NS,
+    numberOfInitCycles: number,
+    maxAdditionalCycles: number,
+    expectedOffer: number,
+): Promise<void> {
     await waitForNumberOfCycles(ns, numberOfInitCycles);
     let offer = ns.corporation.getInvestmentOffer().funds;
     for (let i = 0; i < maxAdditionalCycles; i++) {
         await waitForNumberOfCycles(ns, 1);
-        console.log(`Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        console.log(`Offer: ${ns.format.number(ns.corporation.getInvestmentOffer().funds)}`);
         if (ns.corporation.getInvestmentOffer().funds < offer * 1.001) {
             break;
         }
@@ -1599,8 +1779,8 @@ export async function waitForOffer(ns: NS, numberOfInitCycles: number, maxAdditi
     }
     if (ns.corporation.getInvestmentOffer().funds < expectedOffer) {
         ns.alert(
-            `Offer is lower than expected value. Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`
-            + `. Expected value: ${ns.formatNumber(expectedOffer)}.`
+            `Offer is lower than expected value. Offer: ${ns.format.number(ns.corporation.getInvestmentOffer().funds)}` +
+                `. Expected value: ${ns.format.number(expectedOffer)}.`,
         );
     }
 }

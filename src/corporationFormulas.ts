@@ -2,20 +2,10 @@
  * Do NOT use NS functions in this module's functions
  */
 
-import { CorpIndustryData, CorpMaterialName, CorpUpgradeName } from "@ns";
+import type { CityName, CorpEmployeePosition, CorpIndustryData, CorpMaterialName, CorpUpgradeName } from "@ns";
 import { CorpResearchesData } from "/data/CorpResearchesData";
 import { CorpUpgradesData } from "/data/CorpUpgradesData";
 import { Ceres } from "/libs/Ceres";
-
-// Do NOT rename. This definition is copied from NetscriptDefinitions.d.ts
-export enum CityName {
-    Aevum = "Aevum",
-    Chongqing = "Chongqing",
-    Sector12 = "Sector-12",
-    NewTokyo = "New Tokyo",
-    Ishima = "Ishima",
-    Volhaven = "Volhaven",
-}
 
 export enum CorpState {
     START = "START",
@@ -52,28 +42,27 @@ export enum UnlockName {
     OFFICE_API = "Office API"
 }
 
-export enum UpgradeName {
-    SMART_FACTORIES = "Smart Factories",
-    SMART_STORAGE = "Smart Storage",
-    DREAM_SENSE = "DreamSense",
-    WILSON_ANALYTICS = "Wilson Analytics",
-    NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS = "Nuoptimal Nootropic Injector Implants",
-    SPEECH_PROCESSOR_IMPLANTS = "Speech Processor Implants",
-    NEURAL_ACCELERATORS = "Neural Accelerators",
-    FOCUS_WIRES = "FocusWires",
-    ABC_SALES_BOTS = "ABC SalesBots",
-    PROJECT_INSIGHT = "Project Insight"
-}
+export const UpgradeName = {
+    SMART_FACTORIES: "Smart Factories",
+    SMART_STORAGE: "Smart Storage",
+    WILSON_ANALYTICS: "Wilson Analytics",
+    NUOPTIMAL_NOOTROPIC_INJECTOR_IMPLANTS: "Nuoptimal Nootropic Injector Implants",
+    SPEECH_PROCESSOR_IMPLANTS: "Speech Processor Implants",
+    NEURAL_ACCELERATORS: "Neural Accelerators",
+    FOCUS_WIRES: "FocusWires",
+    ABC_SALES_BOTS: "ABC SalesBots",
+    PROJECT_INSIGHT: "Project Insight",
+} as const;
 
-export enum EmployeePosition {
-    OPERATIONS = "Operations",
-    ENGINEER = "Engineer",
-    BUSINESS = "Business",
-    MANAGEMENT = "Management",
-    RESEARCH_DEVELOPMENT = "Research & Development",
-    INTERN = "Intern",
-    UNASSIGNED = "Unassigned"
-}
+export const EmployeePosition = {
+    OPERATIONS: "Operations",
+    ENGINEER: "Engineer",
+    BUSINESS: "Business",
+    MANAGEMENT: "Management",
+    RESEARCH_DEVELOPMENT: "Research & Development",
+    INTERN: "Intern",
+    UNASSIGNED: "Unassigned",
+} as const;
 
 export enum ResearchName {
     HI_TECH_RND_LABORATORY = "Hi-Tech R&D Laboratory",
@@ -98,23 +87,22 @@ export enum ResearchName {
     UPGRADE_FULCRUM = "uPgrade: Fulcrum",
 }
 
-export enum IndustryType {
-    WATER_UTILITIES = "Water Utilities",
-    SPRING_WATER = "Spring Water",
-    AGRICULTURE = "Agriculture",
-    FISHING = "Fishing",
-    MINING = "Mining",
-    REFINERY = "Refinery",
-    RESTAURANT = "Restaurant",
-    TOBACCO = "Tobacco",
-    CHEMICAL = "Chemical",
-    PHARMACEUTICAL = "Pharmaceutical",
-    COMPUTER_HARDWARE = "Computer Hardware",
-    ROBOTICS = "Robotics",
-    SOFTWARE = "Software",
-    HEALTHCARE = "Healthcare",
-    REAL_ESTATE = "Real Estate",
-}
+export const IndustryType = {
+    WATER_UTILITIES: "Water Utilities",
+    AGRICULTURE: "Agriculture",
+    FISHING: "Fishing",
+    MINING: "Mining",
+    REFINERY: "Refinery",
+    RESTAURANT: "Restaurant",
+    TOBACCO: "Tobacco",
+    CHEMICAL: "Chemical",
+    PHARMACEUTICAL: "Pharmaceutical",
+    COMPUTER_HARDWARE: "Computer Hardware",
+    ROBOTICS: "Robotics",
+    SOFTWARE: "Software",
+    HEALTHCARE: "Healthcare",
+    REAL_ESTATE: "Real Estate",
+} as const;
 
 export interface OfficeSetupJobs {
     Operations: number;
@@ -129,11 +117,6 @@ export interface OfficeSetup {
     city: CityName;
     size: number;
     jobs: OfficeSetupJobs;
-}
-
-export interface ResearchPriority {
-    research: ResearchName;
-    costMultiplier: number;
 }
 
 export interface MaterialOrder {
@@ -153,7 +136,7 @@ export interface ExportRoute {
     destinationAmount: string;
 }
 
-export type CorporationUpgradeLevels = Record<UpgradeName, number>;
+export type CorporationUpgradeLevels = Record<CorpUpgradeName, number>;
 export type DivisionResearches = Record<ResearchName, boolean>;
 
 export interface CeresSolverResult {
@@ -289,8 +272,7 @@ export function getMaxAffordableUpgradeLevel(upgradeName: CorpUpgradeName, fromL
  * @param upgradeLevel
  */
 export function getUpgradeBenefit(upgradeName: CorpUpgradeName, upgradeLevel: number): number {
-    // For DreamSense, value is not a multiplier, so it starts at 0
-    let value = (upgradeName === UpgradeName.DREAM_SENSE) ? 0 : 1;
+    let value = 1;
     const benefit = CorpUpgradesData[upgradeName].benefit;
     if (!benefit) {
         throw new Error(`Cannot find data of upgrade: ${upgradeName}`);
@@ -624,8 +606,8 @@ export async function calculateEmployeeStats(
         avgEnergy: number;
         totalExperience: number;
         numEmployees: number;
-        employeeJobs: Record<EmployeePosition, number>;
-        employeeProductionByJob: Record<EmployeePosition, number>;
+        employeeJobs: Record<CorpEmployeePosition, number>;
+        employeeProductionByJob: Record<CorpEmployeePosition, number>;
     },
     corporationUpgradeLevels: CorporationUpgradeLevels,
     divisionResearches: DivisionResearches

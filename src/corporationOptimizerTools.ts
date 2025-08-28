@@ -1,4 +1,4 @@
-import {CorpIndustryData, Division, Material, NS, Product,} from "@ns";
+import type {CityName, CorpIndustryData, Division, Material, NS, Product,} from "@ns";
 import * as comlink from "/libs/comlink";
 import {Remote} from "/libs/comlink";
 import {
@@ -15,7 +15,7 @@ import {
     OfficeBenchmarkData,
     OfficeBenchmarkSortType
 } from "/corporationOptimizer";
-import {calculateEmployeeStats, CityName, formatNumber, ResearchName} from "/corporationFormulas";
+import {calculateEmployeeStats, formatNumber, ResearchName} from "/corporationFormulas";
 import {
     getCorporationUpgradeLevels,
     getDivisionResearches,
@@ -34,7 +34,7 @@ async function validateWorkerModuleUrl(ns: NS): Promise<void> {
     let valid = true;
     try {
         fetchResult = await fetch(workerModuleUrl);
-    } catch (e) {
+    } catch (_) {
         valid = false;
     }
     if (fetchResult && !fetchResult.ok) {

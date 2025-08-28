@@ -106,8 +106,8 @@ function printLog(ns: NS, targets: Target[]) {
                 `${target.hostname.padEnd(hostnameMaxLength)}` +
                 `${target.currentAction.padStart(actionMaxLength)}` +
                 `${target.currentThreads.toString().padStart(threadMaxLength)}` +
-                `${((target.hackMoney > 0) ? ns.formatNumber(target.hackMoney) : "").padStart(hackMoneyMaxLength)}` +
-                `${ns.tFormat(remainingTime).padStart(timeMaxLength)}` +
+                `${((target.hackMoney > 0) ? ns.format.number(target.hackMoney) : "").padStart(hackMoneyMaxLength)}` +
+                `${ns.format.time(remainingTime).padStart(timeMaxLength)}` +
                 `${(target.currentActionLatestPid !== 0) ? target.currentActionLatestPid.toString().padStart(latestPidMaxLength) : ""}`
             );
         });
@@ -145,9 +145,9 @@ export async function main(ns: NS): Promise<void> {
     const config = (customConfig !== null) ? customConfig : defaultConfig;
 
     ns.disableLog("ALL");
-    ns.tail();
-    ns.resizeTail(800, 300);
-    // ns.moveTail(1750, 625);
+    ns.ui.openTail();
+    ns.ui.resizeTail(800, 300);
+    // ns.ui.moveTail(1750, 625);
 
     // Assume 1 core for all servers. This script focuses on simplicity, so we ignore the home server's number of cores.
     const securityReducedPerWeakenThead = ns.weakenAnalyze(1);
@@ -253,7 +253,7 @@ export async function main(ns: NS): Promise<void> {
             const targetCurrentSecurity = ns.getServerSecurityLevel(target.hostname);
             let targetCurrentMoney = ns.getServerMoneyAvailable(target.hostname);
             if (targetCurrentMoney < 10000) {
-                // ns.tprint(`Detect overhacking. Server: ${target.hostname}. Current money: ${ns.formatNumber(targetCurrentMoney)}`);
+                // ns.tprint(`Detect overhacking. Server: ${target.hostname}. Current money: ${ns.format.number(targetCurrentMoney)}`);
                 targetCurrentMoney = 10000;
             }
             let requiredThreads = 0;
@@ -310,7 +310,7 @@ export async function main(ns: NS): Promise<void> {
                     + `. requiredThreads: ${requiredThreads}`
                     + `. Server: ${target.hostname}`
                     + `. Action: ${action} `
-                    + `. Current money: ${ns.formatNumber(targetCurrentMoney)}`
+                    + `. Current money: ${ns.format.number(targetCurrentMoney)}`
                 );
                 continue;
             }
@@ -319,7 +319,7 @@ export async function main(ns: NS): Promise<void> {
                     + `. requiredThreads: ${requiredThreads}`
                     + `. Server: ${target.hostname}`
                     + `. Action: ${action} `
-                    + `. Current money: ${ns.formatNumber(targetCurrentMoney)}`
+                    + `. Current money: ${ns.format.number(targetCurrentMoney)}`
                 );
             }
             target.currentAction = action;

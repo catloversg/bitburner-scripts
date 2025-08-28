@@ -1,10 +1,11 @@
-import {AutocompleteData, NS} from "@ns";
+import { AutocompleteData, NS } from "@ns";
 import {
     NetscriptExtension,
     NetscriptFlagsSchema,
-    parseAutoCompleteDataFromDefaultConfig
+    parseAutoCompleteDataFromDefaultConfig,
 } from "/libs/NetscriptExtension";
-import {GROW_SCRIPT_NAME, HACK_SCRIPT_NAME, STOCK_HISTORY_LOGS_PREFIX, WEAKEN_SCRIPT_NAME} from "/libs/constants";
+import { GROW_SCRIPT_NAME, HACK_SCRIPT_NAME, STOCK_HISTORY_LOGS_PREFIX, WEAKEN_SCRIPT_NAME } from "/libs/constants";
+import { CompletedProgramName } from "./libs/Enums";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -12,13 +13,14 @@ export function autocomplete(data: AutocompleteData, flags: string[]): string[] 
 }
 
 const defaultConfig: NetscriptFlagsSchema = [
-    ["killall", false],
+    ["killAll", false],
     ["sellAllStocks", false],
     ["deleteStockHistoryLogs", false],
     ["evalPrint", ""],
     ["resetController", false],
     ["eatNoodles", false],
     ["deleteAllScripts", false],
+    ["nukeAllTest", false],
 ];
 
 let nsx: NetscriptExtension;
@@ -34,45 +36,53 @@ export async function main(ns: NS): Promise<void> {
 
     ns.disableLog("ALL");
     // ns.clearLog();
-    // ns.tail();
+    // ns.ui.openTail();
 
     const config = ns.flags(defaultConfig);
-    if (config.killall) {
-        nsx.scanBFS("home", host => {
+
+    if (config.killAll) {
+        nsx.scanBFS("home", (host) => {
             ns.killall(host.hostname, true);
         });
     }
+
     if (config.sellAllStocks) {
-        ns.stock.getSymbols().forEach(symbol => {
+        ns.stock.getSymbols().forEach((symbol) => {
             const position = ns.stock.getPosition(symbol);
             ns.stock.sellStock(symbol, position[0]);
             // ns.stock.sellShort(symbol, position[2]);
         });
     }
+
     if (config.deleteStockHistoryLogs) {
-        ns.ls("home", STOCK_HISTORY_LOGS_PREFIX).forEach(filename => {
+        ns.ls("home", STOCK_HISTORY_LOGS_PREFIX).forEach((filename) => {
             ns.rm(filename);
         });
     }
+
     if (config.evalPrint !== "") {
         ns.tprint(eval(<string>config.evalPrint));
     }
+
     if (config.resetController) {
         ns.scriptKill("controller2.js", "home");
         nsx.scanBFS("home")
-            .filter(host => {
+            .filter((host) => {
                 return ns.getServerMaxRam(host.hostname) > 0 && ns.hasRootAccess(host.hostname);
             })
-            .forEach(host => {
+            .forEach((host) => {
                 const hostname = host.hostname;
                 ns.scriptKill(WEAKEN_SCRIPT_NAME, hostname);
                 ns.scriptKill(GROW_SCRIPT_NAME, hostname);
                 ns.scriptKill(HACK_SCRIPT_NAME, hostname);
             });
     }
+
     if (config.eatNoodles) {
         const doc: Document = eval("document");
-        const buttons = doc.querySelectorAll<HTMLButtonElement>("#root > div:nth-of-type(2) > div:nth-of-type(2) > button")!;
+        const buttons = doc.querySelectorAll<HTMLButtonElement>(
+            "#root > div:nth-of-type(2) > div:nth-of-type(2) > button",
+        )!;
         let eatNoodlesButton = null;
         for (const button of buttons) {
             if (button.textContent === "Eat noodles") {
@@ -96,9 +106,33 @@ export async function main(ns: NS): Promise<void> {
             }
         }
     }
+
     if (config.deleteAllScripts) {
-        ns.ls("home", ".js").forEach(filename => {
+        ns.ls("home", ".js").forEach((filename) => {
             ns.rm(filename);
         });
+        return;
+    }
+
+    if (config.nukeAllTest) {
+        const currentMoney = ns.getPlayer().money;
+        Player.money = 1e100;
+        Player.sourceFiles.set(4, 3);
+        ns.singularity["purchaseTor"]();
+        ns.singularity["purchaseProgram"](CompletedProgramName.bruteSsh);
+        ns.singularity["purchaseProgram"](CompletedProgramName.ftpCrack);
+        ns.singularity["purchaseProgram"](CompletedProgramName.relaySmtp);
+        ns.singularity["purchaseProgram"](CompletedProgramName.httpWorm);
+        ns.singularity["purchaseProgram"](CompletedProgramName.sqlInject);
+        const nsx = new NetscriptExtension(ns);
+        nsx.scanBFS("home", (serverInfo) => {
+            ns.brutessh(serverInfo.hostname);
+            ns.ftpcrack(serverInfo.hostname);
+            ns.relaysmtp(serverInfo.hostname);
+            ns.httpworm(serverInfo.hostname);
+            ns.sqlinject(serverInfo.hostname);
+            ns.nuke(serverInfo.hostname);
+        });
+        Player.money = currentMoney;
     }
 }

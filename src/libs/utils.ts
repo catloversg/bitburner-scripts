@@ -38,15 +38,13 @@ export function mapToJson(map: Map<unknown, unknown>): string {
 }
 
 export function downloadData(data: string, filename: string = Date.now().toString()) {
-    const file = new Blob([data], {type: "text/plain"});
-    const element = document.createElement("a");
+    const file = new Blob([data]);
+    const anchorElement = document.createElement("a");
     const url = URL.createObjectURL(file);
-    element.href = url;
-    element.download = filename;
-    document.body.appendChild(element);
-    element.click();
+    anchorElement.href = url;
+    anchorElement.download = filename;
+    anchorElement.click();
     setTimeout(function () {
-        document.body.removeChild(element);
         window.URL.revokeObjectURL(url);
     }, 0);
 }

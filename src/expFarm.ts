@@ -1,7 +1,7 @@
-import {AutocompleteData, NS} from "@ns";
-import {assertIsNumber} from "/libs/utils";
-import {DEFAULT_EXP_FARM_TARGETS, GROW_SCRIPT_NAME, LOG_FOLDER, WEAKEN_SCRIPT_NAME} from "/libs/constants";
-import {NetscriptExtension} from "/libs/NetscriptExtension";
+import { AutocompleteData, NS } from "@ns";
+import { assertIsNumber } from "/libs/utils";
+import { DEFAULT_EXP_FARM_TARGETS, GROW_SCRIPT_NAME, LOG_FOLDER, WEAKEN_SCRIPT_NAME } from "/libs/constants";
+import { NetscriptExtension } from "/libs/NetscriptExtension";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
@@ -13,7 +13,7 @@ interface Config {
 }
 
 const defaultConfig: Config = {
-    influenceStock: false
+    influenceStock: false,
 };
 
 let customConfig: Config | null = null;
@@ -32,7 +32,7 @@ export async function main(ns: NS): Promise<void> {
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
 
-    const config = (customConfig !== null) ? customConfig : defaultConfig;
+    const config = customConfig !== null ? customConfig : defaultConfig;
 
     ns.disableLog("ALL");
 
@@ -52,45 +52,37 @@ export async function main(ns: NS): Promise<void> {
         // Prepare targets: grow to max, weaken to min
         while (true) {
             // Grow to max money
-            const growThreads = Math.ceil(
-                ns.growthAnalyze(target, ns.getServerMaxMoney(target) / ns.getServerMoneyAvailable(target))
-            );
+            const growThreads = ns.fileExists("Formulas.exe")
+                ? ns.formulas.hacking.growThreads(ns.getServer(target), ns.getPlayer(), ns.getServerMaxMoney(target))
+                : Math.ceil(
+                      ns.growthAnalyze(
+                          target,
+                          ns.getServerMaxMoney(target) / (ns.getServerMoneyAvailable(target) || 1),
+                      ),
+                  );
             const growTime = ns.getGrowTime(target);
             if (growThreads > 0) {
-                nsx.runScriptOnAvailablePrivateRunners(
-                    true,
-                    true,
-                    true,
-                    GROW_SCRIPT_NAME,
-                    growThreads,
-                    target,
-                    0
-                );
+                nsx.runScriptOnAvailablePrivateRunners(true, true, true, GROW_SCRIPT_NAME, growThreads, target, 0);
                 await ns.sleep(growTime + 1000);
             }
 
             // Reduce security to min value
             const securityReducedPerWeakenThead = ns.weakenAnalyze(1);
             const weakenThreads = Math.ceil(
-                (ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target)) / securityReducedPerWeakenThead
+                (ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target)) /
+                    securityReducedPerWeakenThead,
             );
             if (weakenThreads > 0) {
                 const weakenTime = ns.getWeakenTime(target);
-                nsx.runScriptOnAvailablePrivateRunners(
-                    true,
-                    true,
-                    true,
-                    WEAKEN_SCRIPT_NAME,
-                    weakenThreads,
-                    target,
-                    0
-                );
+                nsx.runScriptOnAvailablePrivateRunners(true, true, true, WEAKEN_SCRIPT_NAME, weakenThreads, target, 0);
                 await ns.sleep(weakenTime + 1000);
             }
 
             // Check if server has been prepared successfully
-            if (ns.getServerMoneyAvailable(target) === ns.getServerMaxMoney(target)
-                && ns.getServerSecurityLevel(target) === ns.getServerMinSecurityLevel(target)) {
+            if (
+                ns.getServerMoneyAvailable(target) === ns.getServerMaxMoney(target) &&
+                ns.getServerSecurityLevel(target) === ns.getServerMinSecurityLevel(target)
+            ) {
                 break;
             }
         }
@@ -114,7 +106,7 @@ export async function main(ns: NS): Promise<void> {
                 target,
                 0,
                 config.influenceStock,
-                `${identifierPrefix}${target}-${farmingThreadsPerTarget}` // Identifier
+                `${identifierPrefix}${target}-${farmingThreadsPerTarget}`, // Identifier
             );
             if (!result.success) {
                 ns.tprint(`Fail to start all required threads. Target: ${target}. Threads: ${farmingThreadsPerTarget}`);

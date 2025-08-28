@@ -1,5 +1,5 @@
 // noinspection DuplicatedCode
-import {AutocompleteData, NS} from "@ns";
+import {AutocompleteData, CityName, CorpMaterialName, NS} from "@ns";
 import {NetscriptFlagsSchema} from "/libs/NetscriptExtension";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -7,23 +7,7 @@ export function autocomplete(data: AutocompleteData, flags: string[]): string[] 
     return ["--divisionName", "Agriculture"];
 }
 
-enum CityName {
-    Aevum = "Aevum",
-    Chongqing = "Chongqing",
-    Sector12 = "Sector-12",
-    NewTokyo = "New Tokyo",
-    Ishima = "Ishima",
-    Volhaven = "Volhaven",
-}
-
-const cities: CityName[] = [
-    CityName.Sector12,
-    CityName.Aevum,
-    CityName.Chongqing,
-    CityName.NewTokyo,
-    CityName.Ishima,
-    CityName.Volhaven
-];
+export const cities = ["Sector-12", "Aevum", "Chongqing", "New Tokyo", "Ishima", "Volhaven"] as const;
 
 const defaultConfig: NetscriptFlagsSchema = [
     ["divisionName", "Agriculture"],
@@ -32,9 +16,9 @@ const defaultConfig: NetscriptFlagsSchema = [
 async function stockMaterials(
     ns: NS,
     divisionName: string,
-    cities: CityName[],
+    cities: readonly CityName[],
     materials: {
-        name: string;
+        name: CorpMaterialName;
         amount: number;
     }[]
 ) {

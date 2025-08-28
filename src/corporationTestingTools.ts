@@ -1,6 +1,6 @@
-import type { FactionName, HP, Multipliers, Skills } from "@ns";
+import type { CityName, CorpUpgradeName, FactionName, HP, Multipliers, Skills } from "@ns";
 import { cities } from "/corporationUtils";
-import { CityName, EmployeePosition, MaterialName, ResearchName, UpgradeName } from "/corporationFormulas";
+import { EmployeePosition, MaterialName, ResearchName, UpgradeName } from "/corporationFormulas";
 import { getRecordEntries, PartialRecord } from "/libs/Record";
 import { CorpUpgradesData } from "/data/CorpUpgradesData";
 import { CorpMaterialsData } from "./data/CorpMaterialsData";
@@ -86,23 +86,26 @@ export interface Division {
     producedMaterials: MaterialName[];
     offices: PartialRecord<CityName, Office>;
     warehouses: PartialRecord<CityName, Warehouse>;
+    numAdVerts: number;
+    awareness: number;
+    popularity: number;
 }
 
-export interface Corporation extends Record<string, any> {
+export interface Corporation {
     funds: number;
     revenue: number;
     expenses: number;
     fundingRound: number;
     storedCycles: number;
     divisions: Map<string, Division>;
-    upgrades: Record<UpgradeName, { level: number; value: number }>;
+    upgrades: Record<CorpUpgradeName, { level: number; value: number }>;
     valuation: number;
     cycleCount: number;
 }
 
 const indexDBObjectStore = "savestring";
 
-export async function getObjectStore(): Promise<IDBObjectStore> {
+export function getObjectStore(): Promise<IDBObjectStore> {
     return new Promise((resolve, reject) => {
         const request = window.indexedDB.open("bitburnerSave", 1);
         request.onerror = () => {
@@ -117,7 +120,7 @@ export async function getObjectStore(): Promise<IDBObjectStore> {
     });
 }
 
-export async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
+export function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
     return new Promise((resolve) => {
         getObjectStore().then((objectStore) => {
             const requestGetAllKeys = objectStore.getAllKeys();
@@ -126,7 +129,7 @@ export async function getAllSaveDataKeys(): Promise<IDBValidKey[]> {
     });
 }
 
-export async function getSaveData(key: string): Promise<SaveData> {
+export function getSaveData(key: string): Promise<SaveData> {
     return new Promise((resolve) => {
         getObjectStore().then((objectStore) => {
             const requestGet = objectStore.get(key);
@@ -135,7 +138,7 @@ export async function getSaveData(key: string): Promise<SaveData> {
     });
 }
 
-export async function insertSaveData(saveData: SaveData): Promise<void> {
+export function insertSaveData(saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
         getObjectStore().then((objectStore) => {
             const requestPut = objectStore.put(saveData, new Date().toISOString());
@@ -144,7 +147,7 @@ export async function insertSaveData(saveData: SaveData): Promise<void> {
     });
 }
 
-export async function updateSaveData(key: string, saveData: SaveData): Promise<void> {
+export function updateSaveData(key: string, saveData: SaveData): Promise<void> {
     return new Promise((resolve) => {
         getObjectStore().then((objectStore) => {
             const requestPut = objectStore.put(saveData, key);
@@ -153,7 +156,7 @@ export async function updateSaveData(key: string, saveData: SaveData): Promise<v
     });
 }
 
-export async function deleteSaveData(key: string): Promise<void> {
+export function deleteSaveData(key: string): Promise<void> {
     return new Promise((resolve) => {
         getObjectStore().then((objectStore) => {
             const requestDelete = objectStore.delete(key);
@@ -187,7 +190,7 @@ export function setFunds(funds: number): void {
     Player.corporation!.funds = funds;
 }
 
-export function setUpgradeLevel(upgradeName: UpgradeName, level: number): void {
+export function setUpgradeLevel(upgradeName: CorpUpgradeName, level: number): void {
     if (!isTestingToolsAvailable()) {
         return;
     }
@@ -322,15 +325,15 @@ export function resetRNGData() {
     if (!isTestingToolsAvailable()) {
         return;
     }
-    for (const [_, division] of Player.corporation!.divisions) {
-        for (const [_, office] of Object.entries(division.offices)) {
+    for (const [, division] of Player.corporation!.divisions) {
+        for (const [, office] of Object.entries(division.offices)) {
             office.avgIntelligence = 75;
             office.avgCharisma = 75;
             office.avgCreativity = 75;
             office.avgEfficiency = 75;
         }
-        for (const [_, warehouse] of Object.entries(division.warehouses)) {
-            for (const [_, material] of Object.entries(warehouse.materials)) {
+        for (const [, warehouse] of Object.entries(division.warehouses)) {
+            for (const [, material] of Object.entries(warehouse.materials)) {
                 material.demand = CorpMaterialsData[material.name].demandBase;
                 material.competition = CorpMaterialsData[material.name].competitionBase;
                 material.marketPrice = CorpMaterialsData[material.name].baseCost;
@@ -338,4 +341,13 @@ export function resetRNGData() {
             }
         }
     }
+}
+
+export function setDefaultSettings() {
+    if (!isTestingToolsAvailable()) {
+        return;
+    }
+    globalThis.Settings.Locale = "en";
+    globalThis.Settings.useEngineeringNotation = true;
+    globalThis.Settings.disableSuffixes = true;
 }

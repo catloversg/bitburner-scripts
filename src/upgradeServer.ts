@@ -87,8 +87,8 @@ export async function main(ns: NS): Promise<void> {
                 const availableMoney = ns.getServerMoneyAvailable("home") - reservedMoney;
                 const upgradeCost = ns.getPurchasedServerUpgradeCost(hostname, newRAM);
                 if (availableMoney >= upgradeCost) {
-                    ns.print(`Upgrade server ${hostname} with new RAM ${ns.formatRam(newRAM)}`
-                        + `. Cost: ${ns.formatNumber(upgradeCost)}`
+                    ns.print(`Upgrade server ${hostname} with new RAM ${ns.format.ram(newRAM)}`
+                        + `. Cost: ${ns.format.number(upgradeCost)}`
                         + `. Result: ${(ns.upgradePurchasedServer(hostname, newRAM)) ? "Success" : "Fail"}`
                     );
                     break;

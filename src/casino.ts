@@ -203,7 +203,7 @@ function assistRoulette(ns: NS) {
 
 export async function main(ns: NS) {
     ns.disableLog("ALL");
-    ns.tail();
+    ns.ui.openTail();
     ns.clearLog();
 
     doc = eval("document");

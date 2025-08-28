@@ -9,9 +9,7 @@ module.exports = {
         project: true,
         tsconfigRootDir: __dirname,
     },
-    plugins: [
-        "@typescript-eslint"
-    ],
+    plugins: ["@typescript-eslint"],
     root: true,
     reportUnusedDisableDirectives: true,
     ignorePatterns: [
@@ -34,22 +32,25 @@ module.exports = {
     ],
     overrides: [
         {
-            files: [
-                "src/**/*.ts"
-            ],
+            files: ["src/**/*.ts"],
             rules: {
                 "@typescript-eslint/no-explicit-any": "warn",
-                "@typescript-eslint/no-unused-vars": "warn",
+                "@typescript-eslint/no-unused-vars": [
+                    "warn",
+                    {
+                        argsIgnorePattern: "^_",
+                        varsIgnorePattern: "^_",
+                        caughtErrorsIgnorePattern: "^_",
+                    },
+                ],
                 "no-constant-condition": "off",
-            }
+            },
         },
         {
-            files: [
-                "src/exploits.ts"
-            ],
+            files: ["src/exploits.ts"],
             rules: {
                 "@typescript-eslint/no-unused-vars": "off",
-            }
+            },
         },
-    ]
+    ],
 };

@@ -1,5 +1,5 @@
-import {NS, Product} from "@ns";
-import {CityName, CorporationUpgradeLevels, DivisionResearches, formatNumber, OfficeSetup} from "/corporationFormulas";
+import {CityName, NS, Product} from "@ns";
+import {CorporationUpgradeLevels, DivisionResearches, formatNumber, OfficeSetup} from "/corporationFormulas";
 import {cities, dummyDivisionNamePrefix, getCorporationUpgradeLevels, getDivisionResearches} from "/corporationUtils";
 import {isTestingToolsAvailable} from "/corporationTestingTools";
 import {mean} from "/libs/utils";
@@ -184,11 +184,11 @@ class CorporationEventLogger {
         }
         let lastProduct;
         if (products.length > 1) {
-            lastProduct = ns.corporation.getProduct(divisionName, CityName.Sector12, products[products.length - 2]);
+            lastProduct = ns.corporation.getProduct(divisionName, ns.enums.CityName.Sector12, products[products.length - 2]);
         }
         const newProductEvent: NewProductEvent = {
             cycle: this.cycle,
-            newestProduct: ns.corporation.getProduct(divisionName, CityName.Sector12, products[products.length - 1]),
+            newestProduct: ns.corporation.getProduct(divisionName, ns.enums.CityName.Sector12, products[products.length - 1]),
             lastProduct: lastProduct,
             researchPoints: ns.corporation.getDivision(divisionName).researchPoints
         };

@@ -70,7 +70,7 @@ function createTestingTool() {
         <select name="divisions" id="testing-tools-divisions">
             <option value="Agriculture">Agriculture</option>
             <option value="Chemical">Chemical</option>
-            <option value="Tobacco">Tobacco</option>
+            <option value="T0">Tobacco</option>
         </select>
         <button id="btn-rp">RP</button>
         <button id="btn-office">Office</button>
@@ -319,13 +319,14 @@ function createTestingTool() {
 
 export async function main(nsContext: NS): Promise<void> {
     exposeGameInternalObjects();
+    testingTools.setDefaultSettings();
     ns = nsContext;
     nsx = new NetscriptExtension(ns);
     nsx.killProcessesSpawnFromSameScript();
 
     ns.disableLog("ALL");
     ns.clearLog();
-    // ns.tail();
+    // ns.ui.openTail();
 
     doc = eval("document");
     const hook0 = doc.getElementById("overview-extra-hook-0")!;
@@ -341,7 +342,7 @@ export async function main(nsContext: NS): Promise<void> {
 
     headers.push("<div>ServerLoad</div>");
     values.push("<div id='hud-server-load'>0%</div>");
-    if (ns.stock.hasWSEAccount()) {
+    if (ns.stock.hasWseAccount()) {
         headers.push("<div>StockWorth</div>");
         values.push("<div id='hud-stock-worth'>0</div>");
     }
@@ -375,14 +376,14 @@ export async function main(nsContext: NS): Promise<void> {
             doc.getElementById("hud-server-load")!.innerText =
                 `${(totalUsedRAMOfAllRunners / totalMaxRAMOfAllRunners * 100).toFixed(2)}%`;
 
-            if (ns.stock.hasWSEAccount()) {
+            if (ns.stock.hasWseAccount()) {
                 const hudStockWorthValue = doc.getElementById("hud-stock-worth");
                 if (hudStockWorthValue === null) {
                     rerun(ns);
                     return;
                 }
                 const stockStats = nsx.calculateStockStats();
-                hudStockWorthValue.innerText = ns.formatNumber(stockStats.currentWorth);
+                hudStockWorthValue.innerText = ns.format.number(stockStats.currentWorth);
             }
 
             if (ns.corporation.hasCorporation()) {
@@ -391,7 +392,7 @@ export async function main(nsContext: NS): Promise<void> {
                     rerun(ns);
                     return;
                 }
-                hudInvestmentOfferValue.innerText = ns.formatNumber(ns.corporation.getInvestmentOffer().funds);
+                hudInvestmentOfferValue.innerText = ns.format.number(ns.corporation.getInvestmentOffer().funds);
 
                 let isDaemonRunning = false;
                 ns.ps().forEach(process => {
@@ -436,7 +437,7 @@ export async function main(nsContext: NS): Promise<void> {
                         if (ns.exec("corporation.js", "home", 1, "--round2", "--benchmark") === 0) {
                             ns.toast("Failed to run corporation.js --round2 --benchmark");
                         }
-                    } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
+                    } else if (!hasDivision(ns, DivisionName.TOBACCO_0)) {
                         if (ns.exec("corporation.js", "home", 1, "--round3", "--benchmark") === 0) {
                             ns.toast("Failed to run corporation.js --round3 --benchmark");
                         }

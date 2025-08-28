@@ -1,5 +1,5 @@
-import {AutocompleteData, NS, RunOptions, ScriptArg} from "@ns";
-import {RESERVED_RAM_ON_HOME_SERVER, SHARE_SCRIPT_NAME, STOCK_MARKET_COMMISSION_FEE} from "/libs/constants";
+import { AutocompleteData, NS, RunOptions, ScriptArg } from "@ns";
+import { RESERVED_RAM_ON_HOME_SERVER, SHARE_SCRIPT_NAME, STOCK_MARKET_COMMISSION_FEE } from "/libs/constants";
 
 export interface ScanServerInfo {
     readonly hostname: string;
@@ -8,18 +8,18 @@ export interface ScanServerInfo {
 }
 
 export interface RunnerProcess {
-    readonly hostname: string,
-    readonly availableThreads: number,
-    readonly scriptName: string,
-    readonly threads: number,
-    readonly scriptArgs: (string | number | boolean)[]
-    readonly pid: number
+    readonly hostname: string;
+    readonly availableThreads: number;
+    readonly scriptName: string;
+    readonly threads: number;
+    readonly scriptArgs: (string | number | boolean)[];
+    readonly pid: number;
 }
 
 export interface RunScriptResult {
-    readonly success: boolean,
-    readonly remainingThreads: number, // Number of thread that we cannot run
-    readonly runnerProcesses: RunnerProcess[]
+    readonly success: boolean;
+    readonly remainingThreads: number; // Number of thread that we cannot run
+    readonly runnerProcesses: RunnerProcess[];
 }
 
 export type NetscriptFlagsSchema = [string, string | number | boolean | string[]][];
@@ -45,28 +45,28 @@ export class NetscriptExtension {
     scanDFS(
         startingHostname: string,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        action = (_: ScanServerInfo) => {
-        }
+        action = (_: ScanServerInfo) => {},
     ) {
         const hosts: ScanServerInfo[] = [];
         const hostnames = new Set<string>();
         const scan = (
             currentHostname: string,
-            previousHostname: string, depth: number,
-            actionOfInternalScan: (hostname: ScanServerInfo) => void
+            previousHostname: string,
+            depth: number,
+            actionOfInternalScan: (hostname: ScanServerInfo) => void,
         ) => {
             hostnames.add(currentHostname);
             const currentHost = <ScanServerInfo>{
                 hostname: currentHostname,
                 depth: depth,
-                canAccessFrom: previousHostname
+                canAccessFrom: previousHostname,
             };
             hosts.push(currentHost);
             actionOfInternalScan(currentHost);
 
             // Scan adjacent hosts
             const nextHostnames = this.ns.scan(currentHostname);
-            nextHostnames.forEach(hostname => {
+            nextHostnames.forEach((hostname) => {
                 if (hostnames.has(hostname)) {
                     return;
                 }
@@ -81,13 +81,12 @@ export class NetscriptExtension {
     scanBFS(
         startingHostname: string,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        action = (_: ScanServerInfo) => {
-        }
+        action = (_: ScanServerInfo) => {},
     ) {
         const startingHost = <ScanServerInfo>{
             hostname: startingHostname,
             depth: 0,
-            canAccessFrom: ""
+            canAccessFrom: "",
         };
         const hosts: ScanServerInfo[] = [startingHost];
         const hostnames = new Set<string>();
@@ -99,14 +98,14 @@ export class NetscriptExtension {
             const currentServer = hosts[current];
             // Scan adjacent hosts
             const nextHostnames = this.ns.scan(currentServer.hostname);
-            nextHostnames.forEach(hostname => {
+            nextHostnames.forEach((hostname) => {
                 if (hostnames.has(hostname)) {
                     return;
                 }
                 const host = <ScanServerInfo>{
                     hostname: hostname,
                     depth: currentServer.depth + 1,
-                    canAccessFrom: currentServer.hostname
+                    canAccessFrom: currentServer.hostname,
                 };
                 hosts.push(host);
                 hostnames.add(hostname);
@@ -130,7 +129,8 @@ export class NetscriptExtension {
         killScriptBeforeRunning = true,
         scriptName: string,
         threadOrOptions: number | RunOptions,
-        ...scriptArgs: (string | number | boolean)[]): RunScriptResult {
+        ...scriptArgs: (string | number | boolean)[]
+    ): RunScriptResult {
         const ramPerThread = this.ns.getScriptRam(scriptName, "home");
         let requiredThreads: number | undefined;
         if (typeof threadOrOptions === "number") {
@@ -179,7 +179,7 @@ export class NetscriptExtension {
         return <RunScriptResult>{
             success: requiredThreads === 0,
             remainingThreads: requiredThreads,
-            runnerProcesses: runnerProcesses
+            runnerProcesses: runnerProcesses,
         };
     }
 
@@ -187,25 +187,20 @@ export class NetscriptExtension {
         killScriptBeforeRunning = true,
         scriptName: string,
         threadOrOptions: number | RunOptions,
-        ...scriptArgs: (string | number | boolean)[]): RunScriptResult {
+        ...scriptArgs: (string | number | boolean)[]
+    ): RunScriptResult {
         // Find runners
         const runners = this.scanBFS("home")
-            .filter(host => {
+            .filter((host) => {
                 return this.ns.getServerMaxRam(host.hostname) > 0 && this.ns.hasRootAccess(host.hostname);
             })
             .sort((a, b) => {
                 return this.ns.getServerMaxRam(b.hostname) - this.ns.getServerMaxRam(a.hostname);
             })
-            .map<string>(host => {
+            .map<string>((host) => {
                 return host.hostname;
             });
-        return this.runScriptOnRunners(
-            runners,
-            killScriptBeforeRunning,
-            scriptName,
-            threadOrOptions,
-            ...scriptArgs
-        );
+        return this.runScriptOnRunners(runners, killScriptBeforeRunning, scriptName, threadOrOptions, ...scriptArgs);
     }
 
     /**
@@ -225,7 +220,8 @@ export class NetscriptExtension {
         killScriptBeforeRunning = true,
         scriptName: string,
         threadOrOptions: number | RunOptions,
-        ...scriptArgs: (string | number | boolean)[]): RunScriptResult {
+        ...scriptArgs: (string | number | boolean)[]
+    ): RunScriptResult {
         const runners = this.ns.getPurchasedServers();
         if (reverseRunnerList) {
             runners.reverse();
@@ -233,21 +229,13 @@ export class NetscriptExtension {
         if (allowHomeServer) {
             runners.push("home");
         }
-        return this.runScriptOnRunners(
-            runners,
-            killScriptBeforeRunning,
-            scriptName,
-            threadOrOptions,
-            ...scriptArgs
-        );
+        return this.runScriptOnRunners(runners, killScriptBeforeRunning, scriptName, threadOrOptions, ...scriptArgs);
     }
 
-    checkRunningProcesses(
-        logFilename: string):
-        {
-            stillHaveRunningProcess: boolean,
-            runningProcesses: RunnerProcess[]
-        } {
+    checkRunningProcesses(logFilename: string): {
+        stillHaveRunningProcess: boolean;
+        runningProcesses: RunnerProcess[];
+    } {
         let runnerProcessesInfoFromLog: RunnerProcess[] = [];
         try {
             const logData = this.ns.read(logFilename);
@@ -256,36 +244,36 @@ export class NetscriptExtension {
             } else {
                 return {
                     stillHaveRunningProcess: false,
-                    runningProcesses: []
+                    runningProcesses: [],
                 };
             }
         } catch (ex) {
             this.ns.tprint(ex);
         }
-        const runnerProcesses = runnerProcessesInfoFromLog.filter(runnerProcess => {
+        const runnerProcesses = runnerProcessesInfoFromLog.filter((runnerProcess) => {
             return this.ns.isRunning(runnerProcess.pid);
         });
         this.ns.write(logFilename, JSON.stringify(runnerProcesses), "w");
         return {
             stillHaveRunningProcess: runnerProcesses.length > 0,
-            runningProcesses: runnerProcesses
+            runningProcesses: runnerProcesses,
         };
     }
 
     printShareRAMEffect(minThreads: number, maxThreads: number, step: number) {
         for (let threads = minThreads; threads <= maxThreads; threads += step) {
             const ramPerThread = this.ns.getScriptRam(SHARE_SCRIPT_NAME, "home");
-            const effect = 1 + (Math.log(1 + threads) / 25);
+            const effect = 1 + Math.log(1 + threads) / 25;
             this.ns.tprint(
-                `Threads: ${threads}:. RAM: ${this.ns.formatRam(ramPerThread * threads)}`
-                + `. Effect: ${(effect).toFixed(4)}`
+                `Threads: ${threads}:. RAM: ${this.ns.format.ram(ramPerThread * threads)}` +
+                    `. Effect: ${effect.toFixed(4)}`,
             );
         }
     }
 
     getPrivateServersCost(): number {
         let cost = 0;
-        this.ns.getPurchasedServers().forEach(hostname => {
+        this.ns.getPurchasedServers().forEach((hostname) => {
             cost += this.ns.getPurchasedServerCost(this.ns.getServerMaxRam(hostname));
         });
         return cost;
@@ -340,7 +328,9 @@ export class NetscriptExtension {
         server.hackDifficulty = server.minDifficulty;
         hackTime = this.ns.formulas.hacking.hackTime(server, player);
 
-        this.ns.print(`${hostname}: HWGW time: ${this.ns.tFormat(weakenTime1 + growTime + weakenTime2 + hackTime)}`);
+        this.ns.print(
+            `${hostname}: HWGW time: ${this.ns.format.time(weakenTime1 + growTime + weakenTime2 + hackTime)}`,
+        );
 
         return (server.moneyMax! * hackMoneyRatio) / (weakenTime1 + growTime + weakenTime2 + hackTime);
     }
@@ -390,14 +380,14 @@ export class NetscriptExtension {
         server.hackDifficulty = server.minDifficulty;
         hackTime = this.ns.formulas.hacking.hackTime(server, player);
 
-        this.ns.print(`${hostname}: HGW time: ${this.ns.tFormat(growTime + weakenTime + hackTime)}`);
+        this.ns.print(`${hostname}: HGW time: ${this.ns.format.time(growTime + weakenTime + hackTime)}`);
 
         return (server.moneyMax! * hackMoneyRatio) / (growTime + weakenTime + hackTime);
     }
 
     killProcessesSpawnFromSameScript() {
         const currentScriptName = this.ns.getScriptName();
-        this.ns.ps().forEach(process => {
+        this.ns.ps().forEach((process) => {
             if (process.filename !== currentScriptName || process.pid === this.ns.pid) {
                 return;
             }
@@ -406,13 +396,13 @@ export class NetscriptExtension {
     }
 
     calculateStockStats(): {
-        currentProfit: number,
-        estimatedTotalProfit: number,
-        currentWorth: number
+        currentProfit: number;
+        estimatedTotalProfit: number;
+        currentWorth: number;
     } {
         let currentProfit = 0;
         let currentWorth = 0;
-        this.ns.stock.getSymbols().forEach(stockSymbol => {
+        this.ns.stock.getSymbols().forEach((stockSymbol) => {
             const position = this.ns.stock.getPosition(stockSymbol);
             const sharesLong = position[0];
             const avgLongPrice = position[1];
@@ -422,14 +412,18 @@ export class NetscriptExtension {
                 return;
             }
             if (sharesLong > 0) {
-                const longSharesProfit = sharesLong * (this.ns.stock.getBidPrice(stockSymbol) - avgLongPrice) - (2 * STOCK_MARKET_COMMISSION_FEE);
-                const longSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesLong, "Long");
+                const longSharesProfit =
+                    sharesLong * (this.ns.stock.getBidPrice(stockSymbol) - avgLongPrice) -
+                    2 * STOCK_MARKET_COMMISSION_FEE;
+                const longSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesLong, "L");
                 currentProfit += longSharesProfit;
                 currentWorth += longSharesWorth;
             }
             if (sharesShort > 0) {
-                const shortSharesProfit = sharesShort * (avgShortPrice - this.ns.stock.getAskPrice(stockSymbol)) - (2 * STOCK_MARKET_COMMISSION_FEE);
-                const shortSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesShort, "Short");
+                const shortSharesProfit =
+                    sharesShort * (avgShortPrice - this.ns.stock.getAskPrice(stockSymbol)) -
+                    2 * STOCK_MARKET_COMMISSION_FEE;
+                const shortSharesWorth = this.ns.stock.getSaleGain(stockSymbol, sharesShort, "S");
                 currentProfit += shortSharesProfit;
                 currentWorth += shortSharesWorth;
             }
@@ -439,13 +433,36 @@ export class NetscriptExtension {
         // - All expenses except private servers' cost
         // Formula: currentMoney + currentWorth = hackingProfit + stockTradingProfit - expenses
         const privateServersCost = this.getPrivateServersCost();
-        const estimatedTotalProfit = this.ns.getPlayer().money + currentWorth - this.ns.getMoneySources().sinceInstall.hacking
-            + privateServersCost;
+        const estimatedTotalProfit =
+            this.ns.getPlayer().money +
+            currentWorth -
+            this.ns.getMoneySources().sinceInstall.hacking +
+            privateServersCost;
         return {
             currentProfit: currentProfit,
             estimatedTotalProfit: estimatedTotalProfit,
             currentWorth: currentWorth,
         };
+    }
+
+    connect(targetHostname: string) {
+        const map = new Map<string, string>();
+        this.scanBFS("home", (serverInfo) => {
+            map.set(serverInfo.hostname, serverInfo.canAccessFrom);
+        });
+        const path = [targetHostname];
+        while (true) {
+            const currentNode = path[path.length - 1];
+            const previousNode = map.get(currentNode);
+            if (previousNode === undefined || previousNode === "home") {
+                break;
+            }
+            path.push(previousNode);
+        }
+        this.ns.singularity.connect("home");
+        for (const hostname of path.reverse()) {
+            this.ns.singularity.connect(hostname);
+        }
     }
 }
 
