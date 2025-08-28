@@ -2,8 +2,7 @@
 import { AutocompleteData, CityName, CorpMaterialName, NS } from "@ns";
 import { NetscriptFlagsSchema } from "/libs/NetscriptExtension";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(_data: AutocompleteData, _flags: string[]): string[] {
   return ["--divisionName", "Agriculture"];
 }
 

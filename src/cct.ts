@@ -6,8 +6,7 @@ import { NetscriptExtension } from "/libs/NetscriptExtension";
  *
  * @param input
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function isPrimeNumberNotOptimized(input: number): boolean {
+function _isPrimeNumberNotOptimized(input: number): boolean {
   if (input === 2) {
     return true;
   }
@@ -23,8 +22,7 @@ function isPrimeNumberNotOptimized(input: number): boolean {
   return true;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function isPrimeNumber(input: number): boolean {
+function _isPrimeNumber(input: number): boolean {
   if (input === 2 || input === 3) {
     return true;
   }

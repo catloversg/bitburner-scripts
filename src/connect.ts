@@ -1,8 +1,7 @@
 import { AutocompleteData, NS } from "@ns";
 import { NetscriptExtension } from "./libs/NetscriptExtension";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
   return [...data.servers];
 }
 

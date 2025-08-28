@@ -7,8 +7,7 @@ import {
 import { GROW_SCRIPT_NAME, HACK_SCRIPT_NAME, STOCK_HISTORY_LOGS_PREFIX, WEAKEN_SCRIPT_NAME } from "/libs/constants";
 import { CompletedProgramName } from "./libs/Enums";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
   return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
 }
 

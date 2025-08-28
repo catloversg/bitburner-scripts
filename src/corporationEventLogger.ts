@@ -289,15 +289,18 @@ export function analyseEventData(eventData: string): void {
   }
 }
 
-export function analyseEmployeeRatio(eventData: string): void {
+/**
+ * divisionIndex:
+ * - 0: Agriculture
+ * - 1: Chemical
+ * - 2: Tobacco
+ *
+ * @param eventData
+ * @param divisionIndex
+ */
+export function analyseEmployeeRatio(eventData: string, divisionIndex: number): void {
   const events: CorporationEvent[] = JSON.parse(eventData);
   const data = new Map<number, EmployeeRatioData>();
-  // 0: Agriculture
-  // 1: Chemical
-  // 2: Tobacco
-  /* eslint-disable-next-line prefer-const -- Use let instead of const to avoid linting error when divisionIndex's type
-    is narrowed down */
-  let divisionIndex = 2;
   const isSupportDivision = divisionIndex === 0 || divisionIndex === 1;
   const isProductDivision = !isSupportDivision;
   for (const event of events) {

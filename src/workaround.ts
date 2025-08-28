@@ -24,8 +24,7 @@ export function enableURLRevokeObjectURL() {
   console.log("URL.revokeObjectURL has been enabled");
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(_data: AutocompleteData, _flags: string[]): string[] {
   return ["--runHUDAndDaemon"];
 }
 

@@ -252,11 +252,11 @@ export function normalizeProgress(progress: number): number {
   return scaleValueToRange(progress, 0, 100, defaultMinForNormalization, defaultMaxForNormalization);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getComparator(
   benchmarkType: BenchmarkType,
   sortType?: string,
   customData?: ComparatorCustomData,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): (a: any, b: any) => number {
   switch (benchmarkType) {
     case BenchmarkType.STORAGE_FACTORY:

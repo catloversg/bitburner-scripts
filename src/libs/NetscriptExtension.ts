@@ -42,11 +42,7 @@ export class NetscriptExtension {
     this.atExitCallbacks.push(callback);
   }
 
-  scanDFS(
-    startingHostname: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    action = (_: ScanServerInfo) => {},
-  ) {
+  scanDFS(startingHostname: string, action = (_: ScanServerInfo) => {}) {
     const hosts: ScanServerInfo[] = [];
     const hostnames = new Set<string>();
     const scan = (
@@ -78,11 +74,7 @@ export class NetscriptExtension {
     return hosts;
   }
 
-  scanBFS(
-    startingHostname: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    action = (_: ScanServerInfo) => {},
-  ) {
+  scanBFS(startingHostname: string, action = (_: ScanServerInfo) => {}) {
     const startingHost = <ScanServerInfo>{
       hostname: startingHostname,
       depth: 0,

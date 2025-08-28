@@ -3,8 +3,7 @@ import { assertIsNumber } from "/libs/utils";
 import { DEFAULT_EXP_FARM_TARGETS, GROW_SCRIPT_NAME, LOG_FOLDER, WEAKEN_SCRIPT_NAME } from "/libs/constants";
 import { NetscriptExtension } from "/libs/NetscriptExtension";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
   return [...data.servers];
 }
 

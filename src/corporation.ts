@@ -74,8 +74,7 @@ import * as testingTools from "/corporationTestingTools";
 import { corporationEventLogger } from "/corporationEventLogger";
 import { exposeGameInternalObjects } from "/exploits";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function autocomplete(data: AutocompleteData, flags: string[]): string[] {
+export function autocomplete(data: AutocompleteData, _flags: string[]): string[] {
   return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
 }
 

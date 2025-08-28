@@ -676,8 +676,12 @@ export async function calculateEmployeeStats(
       office.employeeProductionByJob[EmployeePosition.OPERATIONS]
     );
   };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const f2 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
+  const f2 = function ([
+    _effectiveCreativity,
+    effectiveCharisma,
+    effectiveIntelligence,
+    effectiveEfficiency,
+  ]: number[]) {
     return (
       office.employeeJobs[EmployeePosition.ENGINEER] *
         productionBase *
@@ -685,8 +689,12 @@ export async function calculateEmployeeStats(
       office.employeeProductionByJob[EmployeePosition.ENGINEER]
     );
   };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const f3 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
+  const f3 = function ([
+    _effectiveCreativity,
+    effectiveCharisma,
+    effectiveIntelligence,
+    _effectiveEfficiency,
+  ]: number[]) {
     return (
       office.employeeJobs[EmployeePosition.BUSINESS] *
         productionBase *
@@ -694,8 +702,12 @@ export async function calculateEmployeeStats(
       office.employeeProductionByJob[EmployeePosition.BUSINESS]
     );
   };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const f4 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
+  const f4 = function ([
+    effectiveCreativity,
+    effectiveCharisma,
+    _effectiveIntelligence,
+    effectiveEfficiency,
+  ]: number[]) {
     return (
       office.employeeJobs[EmployeePosition.MANAGEMENT] *
         productionBase *
@@ -703,8 +715,12 @@ export async function calculateEmployeeStats(
       office.employeeProductionByJob[EmployeePosition.MANAGEMENT]
     );
   };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const f5 = function ([effectiveCreativity, effectiveCharisma, effectiveIntelligence, effectiveEfficiency]: number[]) {
+  const f5 = function ([
+    effectiveCreativity,
+    _effectiveCharisma,
+    effectiveIntelligence,
+    effectiveEfficiency,
+  ]: number[]) {
     return (
       office.employeeJobs[EmployeePosition.RESEARCH_DEVELOPMENT] *
         productionBase *
