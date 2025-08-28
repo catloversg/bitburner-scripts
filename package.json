@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "build": "node build.mjs",
     "watch": "npm run build && node watch.mjs",
-    "remote": "node watch.mjs"
+    "remote": "node watch.mjs",
+    "format": "prettier --write src"
   },
   "devDependencies": {
     "@babel/core": "^7.28.3",

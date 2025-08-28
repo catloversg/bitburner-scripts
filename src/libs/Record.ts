@@ -20,22 +20,22 @@ export const getRecordEntries = Object.entries as <K extends string, V>(record: 
  * e.g. when it's an array from mapping the enum values, or the keys from a different full record.
  * If not all members of type K are used, use createPartialRecordFromEntries instead. */
 export const createFullRecordFromEntries = Object.fromEntries as <K extends string, V>(
-    entries: [K, V][],
+  entries: [K, V][],
 ) => Record<K, V>;
 
 /** Create a correctly typed object from entries with strongly typed keys.
  * This is safe to use even if not all members of type K are present in the entries.
  * If all members of K are guaranteed to be present, see createFullRecordFromEntries. */
 export const createPartialRecordFromEntries = Object.fromEntries as <K extends string, V>(
-    entries: [K, V][],
+  entries: [K, V][],
 ) => PartialRecord<K, V>;
 
 /** Create a correctly-typed full record keyed by an enum with values based on a value function
  * @param enumObj The enum object
  * @param valueFunction The function which will produce the value, taking in the key as a parameter */
 export function createEnumKeyedRecord<K extends string, V>(
-    enumObj: Record<string, K>,
-    valueFunction: (key: K) => V,
+  enumObj: Record<string, K>,
+  valueFunction: (key: K) => V,
 ): Record<K, V> {
-    return createFullRecordFromEntries(Object.values(enumObj).map((member) => [member, valueFunction(member)]));
+  return createFullRecordFromEntries(Object.values(enumObj).map((member) => [member, valueFunction(member)]));
 }

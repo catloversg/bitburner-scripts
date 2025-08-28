@@ -1,8 +1,8 @@
-import {Directory} from "/libs/paths/Directory";
-import {FilePath, resolveFilePath} from "/libs/paths/FilePath";
+import { Directory } from "/libs/paths/Directory";
+import { FilePath, resolveFilePath } from "/libs/paths/FilePath";
 
 /** Type for just checking a .js extension with no other verification*/
-type WithScriptExtension = string & { __fileType: "Script"; };
+type WithScriptExtension = string & { __fileType: "Script" };
 /** Type for a valid absolute FilePath with a script extension */
 export type ScriptFilePath = FilePath & WithScriptExtension;
 
@@ -15,16 +15,16 @@ export const validScriptExtensions: ScriptExtension[] = [".js", ".script"];
  * @param base The base
  */
 export function resolveScriptFilePath(
-    path: string,
-    base = "" as FilePath | Directory,
-    extensionToAdd?: ScriptExtension,
+  path: string,
+  base = "" as FilePath | Directory,
+  extensionToAdd?: ScriptExtension,
 ): ScriptFilePath | null {
-    if (extensionToAdd && !path.endsWith(extensionToAdd)) path = path + extensionToAdd;
-    const result = resolveFilePath(path, base);
-    return result && hasScriptExtension(result) ? result : null;
+  if (extensionToAdd && !path.endsWith(extensionToAdd)) path = path + extensionToAdd;
+  const result = resolveFilePath(path, base);
+  return result && hasScriptExtension(result) ? result : null;
 }
 
 /** Just check extension */
 export function hasScriptExtension(path: string): path is WithScriptExtension {
-    return validScriptExtensions.some((extension) => path.endsWith(extension));
+  return validScriptExtensions.some((extension) => path.endsWith(extension));
 }
